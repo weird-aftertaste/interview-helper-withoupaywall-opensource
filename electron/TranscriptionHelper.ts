@@ -1,11 +1,11 @@
 /**
  * TranscriptionHelper - Handles audio transcription using various AI providers
  * Follows Single Responsibility Principle - only handles transcription
- * Supports multiple providers: OpenAI (Whisper), Gemini (future), Anthropic (future)
+ * Supports multiple providers: OpenAI (Whisper), Gemini (Audio Understanding), Anthropic (future)
  */
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-// import * as axios from 'axios'; // Uncomment when implementing Gemini speech recognition
+import * as axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
@@ -28,7 +28,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
   
   // Default models for each provider
   private readonly defaultOpenAIModel: string = 'whisper-1';
-  private readonly defaultGeminiModel: string = ''; // To be set when Gemini speech recognition is available
+  private readonly defaultGeminiModel: string = 'gemini-3-flash-preview'; // Gemini model with audio understanding support
   private readonly defaultAnthropicModel: string = ''; // To be set when Anthropic speech recognition is available
 
   constructor() {
@@ -44,7 +44,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
 
   /**
    * Initializes AI clients based on API provider from config
-   * Currently supports OpenAI (Whisper), with structure ready for future providers
+   * Supports OpenAI (Whisper) and Gemini (Audio Understanding)
    */
   private initializeAIClients(): void {
     const config = configHelper.loadConfig();
@@ -62,9 +62,8 @@ export class TranscriptionHelper implements ITranscriptionHelper {
       this.openai = new OpenAI({ apiKey: config.apiKey });
       console.log("OpenAI transcription client initialized");
     } else if (config.apiProvider === "gemini") {
-      // Future: Initialize Gemini client when speech recognition is available
       this.geminiApiKey = config.apiKey;
-      console.log("Gemini API key set (speech recognition not yet available)");
+      console.log("Gemini API key set for audio understanding");
     } else if (config.apiProvider === "anthropic") {
       // Future: Initialize Anthropic client when speech recognition is available
       this.anthropic = new Anthropic({ apiKey: config.apiKey });
@@ -76,9 +75,8 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Checks if the current provider supports speech recognition
    */
   private isSpeechRecognitionSupported(provider: "openai" | "gemini" | "anthropic"): boolean {
-    // Currently only OpenAI supports speech recognition
-    // Update this as other providers add support
-    return provider === "openai";
+    // OpenAI (Whisper) and Gemini (Audio Understanding) support speech recognition
+    return provider === "openai" || provider === "gemini";
   }
 
   private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
@@ -117,7 +115,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
     
     // Check if speech recognition is supported for the current provider
     if (!this.isSpeechRecognitionSupported(config.apiProvider)) {
-      throw new Error(`Speech recognition is currently only supported with OpenAI provider. Please switch to OpenAI in settings.`);
+      throw new Error(`Speech recognition is currently only supported with OpenAI or Gemini providers. Please switch to one of these providers in settings.`);
     }
 
     if (!audioBuffer || audioBuffer.length === 0) {
@@ -196,8 +194,8 @@ export class TranscriptionHelper implements ITranscriptionHelper {
   }
 
   /**
-   * Transcribes audio using Gemini API (Future implementation)
-   * TODO: Implement when Gemini speech recognition becomes available
+   * Transcribes audio using Gemini API Audio Understanding
+   * Uses Gemini's multimodal capabilities to transcribe audio to text
    */
   private async transcribeWithGemini(
     audioBuffer: Buffer,
@@ -207,8 +205,93 @@ export class TranscriptionHelper implements ITranscriptionHelper {
       throw new Error('Gemini API key not initialized. Please set Gemini API key in settings.');
     }
 
-    // TODO: Implement Gemini speech recognition when available
-    throw new Error('Gemini speech recognition is not yet available. Please use OpenAI provider for transcription.');
+    // Get speech recognition model from config
+    const config = configHelper.loadConfig();
+    const speechModel = config.speechRecognitionModel || this.defaultGeminiModel;
+
+    try {
+      // Convert audio buffer to base64
+      const audioBase64 = audioBuffer.toString('base64');
+
+      // Normalize MIME type for Gemini API
+      // Gemini supports: audio/mpeg, audio/mp3, audio/wav, audio/flac, audio/webm, audio/m4a, audio/ogg
+      let normalizedMimeType = mimeType;
+      if (mimeType === 'audio/webm') {
+        normalizedMimeType = 'audio/webm';
+      } else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) {
+        normalizedMimeType = 'audio/mpeg';
+      } else if (mimeType.includes('wav')) {
+        normalizedMimeType = 'audio/wav';
+      } else if (mimeType.includes('flac')) {
+        normalizedMimeType = 'audio/flac';
+      } else if (mimeType.includes('m4a')) {
+        normalizedMimeType = 'audio/m4a';
+      } else if (mimeType.includes('ogg')) {
+        normalizedMimeType = 'audio/ogg';
+      }
+
+      // Create Gemini message with audio data and transcription prompt
+      const geminiMessages = [
+        {
+          role: "user",
+          parts: [
+            {
+              text: "Please transcribe this audio to text. Return only the transcribed text without any additional commentary."
+            },
+            {
+              inlineData: {
+                mimeType: normalizedMimeType,
+                data: audioBase64
+              }
+            }
+          ]
+        }
+      ];
+
+      // Make API request to Gemini
+      const response = await axios.default.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${speechModel}:generateContent?key=${this.geminiApiKey}`,
+        {
+          contents: geminiMessages,
+          generationConfig: {
+            temperature: 0.1, // Low temperature for accurate transcription
+            maxOutputTokens: 4096
+          }
+        }
+      );
+
+      const responseData = response.data;
+
+      // Extract transcription text from response
+      if (!responseData.candidates || responseData.candidates.length === 0) {
+        throw new Error("Empty response from Gemini API");
+      }
+
+      const transcriptionText = responseData.candidates[0].content.parts[0].text;
+
+      // Gemini doesn't provide language detection in the same way as Whisper
+      // We can try to extract it from the response if available, otherwise return undefined
+      const language = responseData.candidates[0]?.content?.parts[0]?.text?.match(/\[Language: (\w+)\]/)?.[1];
+
+      return {
+        text: transcriptionText.trim(),
+        language: language || undefined,
+      };
+    } catch (error: any) {
+      console.error('Gemini transcription error:', error);
+      
+      // Provide more specific error messages
+      const status = error?.status ?? error?.response?.status;
+      if (status === 401) {
+        throw new Error(this.formatProviderError("gemini", error, "Auth"));
+      } else if (status === 429) {
+        throw new Error(this.formatProviderError("gemini", error, "Rate limit"));
+      } else if (status === 400) {
+        throw new Error(this.formatProviderError("gemini", error, "Invalid audio file or request"));
+      }
+
+      throw new Error(this.formatProviderError("gemini", error, "Transcription"));
+    }
   }
 
   /**

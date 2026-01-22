@@ -114,10 +114,21 @@ export class ConfigHelper extends EventEmitter {
           );
         }
         
-        // Ensure speechRecognitionModel is valid (only whisper-1 for OpenAI)
-        if (config.speechRecognitionModel && config.apiProvider === "openai") {
-          if (config.speechRecognitionModel !== "whisper-1") {
+        // Ensure speechRecognitionModel is valid
+        if (config.speechRecognitionModel) {
+          if (config.apiProvider === "openai" && config.speechRecognitionModel !== "whisper-1") {
             config.speechRecognitionModel = "whisper-1";
+          } else if (config.apiProvider === "gemini") {
+            const allowedGeminiSpeechModels = [
+              "gemini-1.5-flash",
+              "gemini-1.5-pro",
+              "gemini-3-flash-preview",
+              "gemini-3-pro-preview",
+              "gemini-2.0-flash-exp"
+            ];
+            if (!allowedGeminiSpeechModels.includes(config.speechRecognitionModel)) {
+              config.speechRecognitionModel = DEFAULT_MODELS.gemini.speechRecognitionModel || "gemini-3-flash-preview";
+            }
           }
         } else if (!config.speechRecognitionModel) {
           config.speechRecognitionModel = this.defaultConfig.speechRecognitionModel;
@@ -187,17 +198,31 @@ export class ConfigHelper extends EventEmitter {
         updates.extractionModel = defaults.extractionModel;
         updates.solutionModel = defaults.solutionModel;
         updates.debuggingModel = defaults.debuggingModel;
-        // Speech recognition currently only supported for OpenAI
+        // Speech recognition supported for OpenAI and Gemini
         if (defaults.speechRecognitionModel) {
           updates.speechRecognitionModel = defaults.speechRecognitionModel;
         }
       }
       
-      // Validate speech recognition model (only whisper-1 is supported, and only for OpenAI)
+      // Validate speech recognition model
       if (updates.speechRecognitionModel) {
         if (provider === "openai" && updates.speechRecognitionModel !== "whisper-1") {
           console.warn(`Invalid speech recognition model: ${updates.speechRecognitionModel}. Only whisper-1 is supported for OpenAI.`);
           updates.speechRecognitionModel = "whisper-1";
+        } else if (provider === "gemini") {
+          // Validate Gemini models that support audio understanding
+          const allowedGeminiSpeechModels = [
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-3-flash-preview",
+            "gemini-3-pro-preview",
+            "gemini-2.0-flash-exp"
+          ];
+          if (!allowedGeminiSpeechModels.includes(updates.speechRecognitionModel)) {
+            const defaultModel = DEFAULT_MODELS[provider].speechRecognitionModel || "gemini-3-flash-preview";
+            console.warn(`Invalid Gemini speech recognition model: ${updates.speechRecognitionModel}. Using default: ${defaultModel}`);
+            updates.speechRecognitionModel = defaultModel;
+          }
         }
       }
       

@@ -311,26 +311,64 @@ Format as simple bullet points, one per line starting with "-".`;
 
   /**
    * Parses AI response into structured suggestions
+   * Handles multi-line suggestions and text after colons (e.g., "Explain that: ...")
    */
   private parseSuggestions(suggestionsText: string): string[] {
-    return suggestionsText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => {
-        // Match bullet points, numbered lists, or lines starting with common prefixes
-        return line.startsWith('-') || 
-               line.startsWith('•') || 
-               line.match(/^\d+\./) ||
-               (line.length > 0 && line.length < 200); // Reasonable length
-      })
-      .map(line => {
-        // Remove bullet/number prefixes
-        return line
+    const lines = suggestionsText.split('\n').map(line => line.trim());
+    const suggestions: string[] = [];
+    let currentSuggestion = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Skip empty lines
+      if (!line) {
+        if (currentSuggestion) {
+          suggestions.push(currentSuggestion.trim());
+          currentSuggestion = '';
+        }
+        continue;
+      }
+
+      // Check if this line starts a new suggestion (bullet point, number, or starts with capital letter after empty line)
+      const isNewSuggestion = 
+        line.startsWith('-') || 
+        line.startsWith('•') || 
+        line.match(/^\d+\./) ||
+        (i > 0 && !lines[i - 1] && line.length > 0 && line.length < 200);
+
+      if (isNewSuggestion) {
+        // Save previous suggestion if exists
+        if (currentSuggestion) {
+          suggestions.push(currentSuggestion.trim());
+        }
+        // Start new suggestion, removing bullet/number prefix
+        currentSuggestion = line
           .replace(/^[-•]\s*/, '')
           .replace(/^\d+\.\s*/, '')
           .trim();
-      })
-      .filter(line => line.length > 0 && line.length < 200); // Filter out empty or too long
+      } else if (currentSuggestion) {
+        // Continue current suggestion (multi-line)
+        currentSuggestion += ' ' + line;
+      } else if (line.length > 0 && line.length < 200) {
+        // Standalone line that might be a suggestion
+        currentSuggestion = line;
+      }
+    }
+
+    // Don't forget the last suggestion
+    if (currentSuggestion) {
+      suggestions.push(currentSuggestion.trim());
+    }
+
+    // Filter out empty or too long suggestions, and clean up
+    return suggestions
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && s.length < 500) // Increased limit for multi-line suggestions
+      .map(s => {
+        // Clean up any extra whitespace
+        return s.replace(/\s+/g, ' ').trim();
+      });
   }
 
   /**

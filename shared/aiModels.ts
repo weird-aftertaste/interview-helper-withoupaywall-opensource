@@ -46,7 +46,7 @@ export const DEFAULT_MODELS: Record<
     extractionModel: string;
     solutionModel: string;
     debuggingModel: string;
-    // Speech recognition is only supported for OpenAI right now.
+    // Speech recognition is supported for OpenAI (Whisper) and Gemini (Audio Understanding)
     speechRecognitionModel?: string;
   }
 > = {
@@ -60,6 +60,7 @@ export const DEFAULT_MODELS: Record<
     extractionModel: "gemini-3-flash-preview",
     solutionModel: "gemini-3-flash-preview",
     debuggingModel: "gemini-3-flash-preview",
+    speechRecognitionModel: "gemini-3-flash-preview",
   },
   anthropic: {
     extractionModel: "claude-3-7-sonnet-20250219",

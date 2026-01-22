@@ -96,7 +96,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           setSpeechRecognitionModel(
             config.speechRecognitionModel ||
               providerDefaults.speechRecognitionModel ||
-              "whisper-1"
+              (config.apiProvider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
           );
           setCandidateProfile(config.candidateProfile || {
             name: "",
@@ -124,7 +124,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     setSolutionModel(defaults.solutionModel);
     setDebuggingModel(defaults.debuggingModel);
     setSpeechRecognitionModel(
-      defaults.speechRecognitionModel || "whisper-1"
+      defaults.speechRecognitionModel || 
+      (provider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
     );
   };
 
@@ -484,10 +485,93 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   </div>
                 </div>
               </div>
+            ) : apiProvider === "gemini" ? (
+              <div className="space-y-2">
+                <div
+                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                    speechRecognitionModel === "gemini-1.5-flash"
+                      ? "bg-white/10 border border-white/20"
+                      : "bg-black/30 border border-white/5 hover:bg-white/5"
+                  }`}
+                  onClick={() => setSpeechRecognitionModel("gemini-1.5-flash")}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        speechRecognitionModel === "gemini-1.5-flash" ? "bg-white" : "bg-white/20"
+                      }`}
+                    />
+                    <div>
+                      <p className="font-medium text-white text-xs">Gemini 1.5 Flash</p>
+                      <p className="text-xs text-white/60">Fast and efficient audio understanding</p>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                    speechRecognitionModel === "gemini-1.5-pro"
+                      ? "bg-white/10 border border-white/20"
+                      : "bg-black/30 border border-white/5 hover:bg-white/5"
+                  }`}
+                  onClick={() => setSpeechRecognitionModel("gemini-1.5-pro")}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        speechRecognitionModel === "gemini-1.5-pro" ? "bg-white" : "bg-white/20"
+                      }`}
+                    />
+                    <div>
+                      <p className="font-medium text-white text-xs">Gemini 1.5 Pro</p>
+                      <p className="text-xs text-white/60">Higher accuracy audio understanding</p>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                    speechRecognitionModel === "gemini-3-flash-preview"
+                      ? "bg-white/10 border border-white/20"
+                      : "bg-black/30 border border-white/5 hover:bg-white/5"
+                  }`}
+                  onClick={() => setSpeechRecognitionModel("gemini-3-flash-preview")}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        speechRecognitionModel === "gemini-3-flash-preview" ? "bg-white" : "bg-white/20"
+                      }`}
+                    />
+                    <div>
+                      <p className="font-medium text-white text-xs">Gemini 3 Flash (Preview)</p>
+                      <p className="text-xs text-white/60">Latest preview model with audio understanding</p>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                    speechRecognitionModel === "gemini-3-pro-preview"
+                      ? "bg-white/10 border border-white/20"
+                      : "bg-black/30 border border-white/5 hover:bg-white/5"
+                  }`}
+                  onClick={() => setSpeechRecognitionModel("gemini-3-pro-preview")}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-3 h-3 rounded-full ${
+                        speechRecognitionModel === "gemini-3-pro-preview" ? "bg-white" : "bg-white/20"
+                      }`}
+                    />
+                    <div>
+                      <p className="font-medium text-white text-xs">Gemini 3 Pro (Preview)</p>
+                      <p className="text-xs text-white/60">Best accuracy with audio understanding</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="p-3 rounded-lg bg-black/30 border border-white/10">
                 <p className="text-sm text-white/70">
-                  Speech recognition is only supported with OpenAI. Please switch to OpenAI provider to use this feature.
+                  Speech recognition is only supported with OpenAI or Gemini. Please switch to one of these providers to use this feature.
                 </p>
               </div>
             )}
