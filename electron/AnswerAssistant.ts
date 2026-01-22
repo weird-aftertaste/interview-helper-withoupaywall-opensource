@@ -4,8 +4,29 @@
  * Uses Dependency Inversion Principle - depends on IConversationManager interface
  */
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import * as axios from 'axios';
 import { configHelper, CandidateProfile } from './ConfigHelper';
 import { IConversationManager } from './ConversationManager';
+
+// Interface for Gemini API requests
+interface GeminiMessage {
+  role: string;
+  parts: Array<{
+    text?: string;
+  }>;
+}
+
+interface GeminiResponse {
+  candidates: Array<{
+    content: {
+      parts: Array<{
+        text: string;
+      }>;
+    };
+    finishReason: string;
+  }>;
+}
 
 export interface AnswerSuggestion {
   suggestions: string[];
@@ -22,19 +43,42 @@ export interface IAnswerAssistant {
 
 export class AnswerAssistant implements IAnswerAssistant {
   private openai: OpenAI | null = null;
-  private readonly defaultModel: string = 'gpt-4o-mini';
+  private geminiApiKey: string | null = null;
+  private anthropic: Anthropic | null = null;
+  private readonly defaultOpenAIModel: string = 'gpt-4o-mini';
+  private readonly defaultGeminiModel: string = 'gemini-2.0-flash';
+  private readonly defaultAnthropicModel: string = 'claude-3-7-sonnet-20250219';
 
   constructor() {
-    this.initializeOpenAI();
+    this.initializeAIClients();
+    
+    // Listen for config changes to re-initialize the AI clients
+    configHelper.on('config-updated', () => {
+      this.initializeAIClients();
+    });
   }
 
   /**
-   * Initializes OpenAI client with API key from config
+   * Initializes AI clients based on API provider from config
    */
-  private initializeOpenAI(): void {
+  private initializeAIClients(): void {
     const config = configHelper.loadConfig();
-    if (config.apiKey && config.apiKey.trim().length > 0) {
+    
+    // Reset all clients
+    this.openai = null;
+    this.geminiApiKey = null;
+    this.anthropic = null;
+    
+    if (!config.apiKey || config.apiKey.trim().length === 0) {
+      return;
+    }
+    
+    if (config.apiProvider === "openai") {
       this.openai = new OpenAI({ apiKey: config.apiKey });
+    } else if (config.apiProvider === "gemini") {
+      this.geminiApiKey = config.apiKey;
+    } else if (config.apiProvider === "anthropic") {
+      this.anthropic = new Anthropic({ apiKey: config.apiKey });
     }
   }
 
@@ -44,7 +88,7 @@ export class AnswerAssistant implements IAnswerAssistant {
    * @param conversationManager - Conversation manager instance (dependency injection)
    * @param screenshotContext - Optional screenshot context for coding interviews
    * @returns Promise resolving to answer suggestions
-   * @throws Error if OpenAI client not initialized or request fails
+   * @throws Error if AI client not initialized or request fails
    */
   public async generateAnswerSuggestions(
     currentQuestion: string,
@@ -52,8 +96,11 @@ export class AnswerAssistant implements IAnswerAssistant {
     screenshotContext?: string,
     candidateProfile?: CandidateProfile
   ): Promise<AnswerSuggestion> {
-    if (!this.openai) {
-      throw new Error('OpenAI client not initialized. Please set API key.');
+    const config = configHelper.loadConfig();
+    
+    // Check if any AI client is initialized
+    if (!this.openai && !this.geminiApiKey && !this.anthropic) {
+      throw new Error('AI client not initialized. Please set API key in settings.');
     }
 
     if (!currentQuestion || currentQuestion.trim().length === 0) {
@@ -74,24 +121,74 @@ export class AnswerAssistant implements IAnswerAssistant {
       profile
     );
 
-    try {
-      const response = await this.openai.chat.completions.create({
-        model: this.defaultModel,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate’s background. Provide concise, actionable suggestions.'
-          },
-          {
-            role: 'user',
-            content: contextPrompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 500,
-      });
+    const systemMessage = 'You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate\'s background. Provide concise, actionable suggestions.';
 
-      const suggestionsText = response.choices[0]?.message?.content || '';
+    try {
+      let suggestionsText = '';
+
+      if (config.apiProvider === "openai" && this.openai) {
+        const response = await this.openai.chat.completions.create({
+          model: this.defaultOpenAIModel,
+          messages: [
+            {
+              role: 'system',
+              content: systemMessage
+            },
+            {
+              role: 'user',
+              content: contextPrompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 500,
+        });
+
+        suggestionsText = response.choices[0]?.message?.content || '';
+      } else if (config.apiProvider === "gemini" && this.geminiApiKey) {
+        const geminiMessages: GeminiMessage[] = [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `${systemMessage}\n\n${contextPrompt}`
+              }
+            ]
+          }
+        ];
+
+        const response = await axios.default.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/${this.defaultGeminiModel}:generateContent?key=${this.geminiApiKey}`,
+          {
+            contents: geminiMessages,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 500
+            }
+          }
+        );
+
+        const responseData = response.data as GeminiResponse;
+        if (responseData.candidates && responseData.candidates.length > 0) {
+          suggestionsText = responseData.candidates[0].content.parts[0].text;
+        }
+      } else if (config.apiProvider === "anthropic" && this.anthropic) {
+        const response = await this.anthropic.messages.create({
+          model: this.defaultAnthropicModel,
+          max_tokens: 500,
+          messages: [
+            {
+              role: 'user',
+              content: `${systemMessage}\n\n${contextPrompt}`
+            }
+          ],
+          temperature: 0.7
+        });
+
+        suggestionsText = (response.content[0] as { type: 'text', text: string }).text;
+      } else {
+        throw new Error('No AI client available. Please configure your API key in settings.');
+      }
+
       const suggestions = this.parseSuggestions(suggestionsText);
 
       return {
@@ -103,9 +200,9 @@ export class AnswerAssistant implements IAnswerAssistant {
     } catch (error: any) {
       console.error('Error generating suggestions:', error);
       
-      // Provide specific error messages
+      // Provide specific error messages based on provider
       if (error.status === 401) {
-        throw new Error('Invalid API key. Please check your OpenAI API key in settings.');
+        throw new Error(`Invalid API key. Please check your ${config.apiProvider} API key in settings.`);
       } else if (error.status === 429) {
         throw new Error('Rate limit exceeded. Please try again in a moment.');
       }
@@ -222,9 +319,9 @@ Format as simple bullet points, one per line starting with "-".`;
   }
 
   /**
-   * Checks if OpenAI client is initialized
+   * Checks if any AI client is initialized
    */
   public isInitialized(): boolean {
-    return this.openai !== null;
+    return this.openai !== null || this.geminiApiKey !== null || this.anthropic !== null;
   }
 }
