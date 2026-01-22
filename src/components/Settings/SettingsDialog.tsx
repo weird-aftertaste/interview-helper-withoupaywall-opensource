@@ -13,165 +13,12 @@ import { Button } from "../ui/button";
 import { Settings } from "lucide-react";
 import { useToast } from "../../contexts/toast";
 import { CandidateProfileSection, CandidateProfile } from "./CandidateProfileSection";
-
-type APIProvider = "openai" | "gemini" | "anthropic";
-
-type AIModel = {
-  id: string;
-  name: string;
-  description: string;
-};
-
-type ModelCategory = {
-  key: 'extractionModel' | 'solutionModel' | 'debuggingModel';
-  title: string;
-  description: string;
-  openaiModels: AIModel[];
-  geminiModels: AIModel[];
-  anthropicModels: AIModel[];
-};
-
-// Define available models for each category
-const modelCategories: ModelCategory[] = [
-  {
-    key: 'extractionModel',
-    title: 'Problem Extraction',
-    description: 'Model used to analyze screenshots and extract problem details',
-    openaiModels: [
-      {
-        id: "gpt-4o",
-        name: "gpt-4o",
-        description: "Best overall performance for problem extraction"
-      },
-      {
-        id: "gpt-4o-mini",
-        name: "gpt-4o-mini",
-        description: "Faster, more cost-effective option"
-      }
-    ],
-    geminiModels: [
-      {
-        id: "gemini-1.5-pro",
-        name: "Gemini 1.5 Pro",
-        description: "Best overall performance for problem extraction"
-      },
-      {
-        id: "gemini-2.0-flash",
-        name: "Gemini 2.0 Flash",
-        description: "Faster, more cost-effective option"
-      }
-    ],
-    anthropicModels: [
-      {
-        id: "claude-3-7-sonnet-20250219",
-        name: "Claude 3.7 Sonnet",
-        description: "Best overall performance for problem extraction"
-      },
-      {
-        id: "claude-3-5-sonnet-20241022",
-        name: "Claude 3.5 Sonnet",
-        description: "Balanced performance and speed"
-      },
-      {
-        id: "claude-3-opus-20240229",
-        name: "Claude 3 Opus",
-        description: "Top-level intelligence, fluency, and understanding"
-      }
-    ]
-  },
-  {
-    key: 'solutionModel',
-    title: 'Solution Generation',
-    description: 'Model used to generate coding solutions',
-    openaiModels: [
-      {
-        id: "gpt-4o",
-        name: "gpt-4o",
-        description: "Strong overall performance for coding tasks"
-      },
-      {
-        id: "gpt-4o-mini",
-        name: "gpt-4o-mini",
-        description: "Faster, more cost-effective option"
-      }
-    ],
-    geminiModels: [
-      {
-        id: "gemini-1.5-pro",
-        name: "Gemini 1.5 Pro",
-        description: "Strong overall performance for coding tasks"
-      },
-      {
-        id: "gemini-2.0-flash",
-        name: "Gemini 2.0 Flash",
-        description: "Faster, more cost-effective option"
-      }
-    ],
-    anthropicModels: [
-      {
-        id: "claude-3-7-sonnet-20250219",
-        name: "Claude 3.7 Sonnet",
-        description: "Strong overall performance for coding tasks"
-      },
-      {
-        id: "claude-3-5-sonnet-20241022",
-        name: "Claude 3.5 Sonnet",
-        description: "Balanced performance and speed"
-      },
-      {
-        id: "claude-3-opus-20240229",
-        name: "Claude 3 Opus",
-        description: "Top-level intelligence, fluency, and understanding"
-      }
-    ]
-  },
-  {
-    key: 'debuggingModel',
-    title: 'Debugging',
-    description: 'Model used to debug and improve solutions',
-    openaiModels: [
-      {
-        id: "gpt-4o",
-        name: "gpt-4o",
-        description: "Best for analyzing code and error messages"
-      },
-      {
-        id: "gpt-4o-mini",
-        name: "gpt-4o-mini",
-        description: "Faster, more cost-effective option"
-      }
-    ],
-    geminiModels: [
-      {
-        id: "gemini-1.5-pro",
-        name: "Gemini 1.5 Pro",
-        description: "Best for analyzing code and error messages"
-      },
-      {
-        id: "gemini-2.0-flash",
-        name: "Gemini 2.0 Flash",
-        description: "Faster, more cost-effective option"
-      }
-    ],
-    anthropicModels: [
-      {
-        id: "claude-3-7-sonnet-20250219",
-        name: "Claude 3.7 Sonnet",
-        description: "Best for analyzing code and error messages"
-      },
-      {
-        id: "claude-3-5-sonnet-20241022",
-        name: "Claude 3.5 Sonnet",
-        description: "Balanced performance and speed"
-      },
-      {
-        id: "claude-3-opus-20240229",
-        name: "Claude 3 Opus",
-        description: "Top-level intelligence, fluency, and understanding"
-      }
-    ]
-  }
-];
+import {
+  APIProvider,
+  AIModel,
+  MODEL_CATEGORIES,
+  DEFAULT_MODELS,
+} from "../../../shared/aiModels";
 
 interface SettingsDialogProps {
   open?: boolean;
@@ -182,9 +29,15 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [open, setOpen] = useState(externalOpen || false);
   const [apiKey, setApiKey] = useState("");
   const [apiProvider, setApiProvider] = useState<APIProvider>("openai");
-  const [extractionModel, setExtractionModel] = useState("gpt-4o");
-  const [solutionModel, setSolutionModel] = useState("gpt-4o");
-  const [debuggingModel, setDebuggingModel] = useState("gpt-4o");
+  const [extractionModel, setExtractionModel] = useState(
+    DEFAULT_MODELS.openai.extractionModel
+  );
+  const [solutionModel, setSolutionModel] = useState(
+    DEFAULT_MODELS.openai.solutionModel
+  );
+  const [debuggingModel, setDebuggingModel] = useState(
+    DEFAULT_MODELS.openai.debuggingModel
+  );
   const [speechRecognitionModel, setSpeechRecognitionModel] = useState("whisper-1");
   const [candidateProfile, setCandidateProfile] = useState<CandidateProfile>({
     name: "",
@@ -228,11 +81,23 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         .getConfig()
         .then((config: Config) => {
           setApiKey(config.apiKey || "");
-          setApiProvider(config.apiProvider || "openai");
-          setExtractionModel(config.extractionModel || "gpt-4o");
-          setSolutionModel(config.solutionModel || "gpt-4o");
-          setDebuggingModel(config.debuggingModel || "gpt-4o");
-          setSpeechRecognitionModel(config.speechRecognitionModel || "whisper-1");
+          const provider: APIProvider = config.apiProvider || "openai";
+          setApiProvider(provider);
+          const providerDefaults = DEFAULT_MODELS[provider];
+          setExtractionModel(
+            config.extractionModel || providerDefaults.extractionModel
+          );
+          setSolutionModel(
+            config.solutionModel || providerDefaults.solutionModel
+          );
+          setDebuggingModel(
+            config.debuggingModel || providerDefaults.debuggingModel
+          );
+          setSpeechRecognitionModel(
+            config.speechRecognitionModel ||
+              providerDefaults.speechRecognitionModel ||
+              "whisper-1"
+          );
           setCandidateProfile(config.candidateProfile || {
             name: "",
             resume: "",
@@ -254,22 +119,13 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     setApiProvider(provider);
     
     // Reset models to defaults when changing provider
-    if (provider === "openai") {
-      setExtractionModel("gpt-4o");
-      setSolutionModel("gpt-4o");
-      setDebuggingModel("gpt-4o");
-      setSpeechRecognitionModel("whisper-1");
-    } else if (provider === "gemini") {
-      setExtractionModel("gemini-1.5-pro");
-      setSolutionModel("gemini-1.5-pro");
-      setDebuggingModel("gemini-1.5-pro");
-      setSpeechRecognitionModel("whisper-1"); // Keep whisper-1 but will show as not supported
-    } else if (provider === "anthropic") {
-      setExtractionModel("claude-3-7-sonnet-20250219");
-      setSolutionModel("claude-3-7-sonnet-20250219");
-      setDebuggingModel("claude-3-7-sonnet-20250219");
-      setSpeechRecognitionModel("whisper-1"); // Keep whisper-1 but will show as not supported
-    }
+    const defaults = DEFAULT_MODELS[provider];
+    setExtractionModel(defaults.extractionModel);
+    setSolutionModel(defaults.solutionModel);
+    setDebuggingModel(defaults.debuggingModel);
+    setSpeechRecognitionModel(
+      defaults.speechRecognitionModel || "whisper-1"
+    );
   };
 
   const handleSave = async () => {
@@ -391,7 +247,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   />
                   <div className="flex flex-col">
                     <p className="font-medium text-white text-sm">Gemini</p>
-                    <p className="text-xs text-white/60">Gemini 1.5 models</p>
+                    <p className="text-xs text-white/60">Gemini 3 models</p>
                   </div>
                 </div>
               </div>
@@ -541,12 +397,9 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               Select which models to use for each stage of the process
             </p>
             
-            {modelCategories.map((category) => {
+            {MODEL_CATEGORIES.map((category) => {
               // Get the appropriate model list based on selected provider
-              const models = 
-                apiProvider === "openai" ? category.openaiModels : 
-                apiProvider === "gemini" ? category.geminiModels :
-                category.anthropicModels;
+              const models: AIModel[] = category.modelsByProvider[apiProvider];
               
               return (
                 <div key={category.key} className="mb-4">

@@ -8,6 +8,10 @@ import { app, BrowserWindow, dialog } from "electron"
 import { OpenAI } from "openai"
 import { configHelper } from "./ConfigHelper"
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  APIProvider,
+  DEFAULT_MODELS,
+} from "../shared/aiModels";
 
 // Interface for Gemini API requests
 interface GeminiMessage {
@@ -53,6 +57,18 @@ export class ProcessingHelper {
   // AbortControllers for API requests
   private currentProcessingAbortController: AbortController | null = null
   private currentExtraProcessingAbortController: AbortController | null = null
+  
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
+    const status =
+      typeof error?.status === "number"
+        ? error.status
+        : typeof error?.response?.status === "number"
+          ? error.response.status
+          : undefined;
+    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
+    const statusPart = status ? ` (status ${status})` : "";
+    return `[${provider}] ${context} failed${statusPart}: ${message}`;
+  }
 
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
@@ -579,7 +595,7 @@ export class ProcessingHelper {
 
           // Make API request to Gemini
           const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.extractionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.extractionModel || "gemini-3-flash-latest"}:generateContent?key=${this.geminiApiKey}`,
             {
               contents: geminiMessages,
               generationConfig: {
@@ -605,7 +621,7 @@ export class ProcessingHelper {
           console.error("Error using Gemini API:", error);
           return {
             success: false,
-            error: "Failed to process with Gemini API. Please check your API key or try again later."
+            error: this.formatProviderError("gemini", error, "Problem extraction")
           };
         }
       } else if (config.apiProvider === "anthropic") {
@@ -672,7 +688,7 @@ export class ProcessingHelper {
 
           return {
             success: false,
-            error: "Failed to process with Anthropic API. Please check your API key or try again later."
+            error: this.formatProviderError("anthropic", error, "Problem extraction")
           };
         }
       }
@@ -729,28 +745,31 @@ export class ProcessingHelper {
         };
       }
       
+      const config = configHelper.loadConfig();
+      const provider: APIProvider = config.apiProvider;
+
       // Handle OpenAI API errors specifically
       if (error?.response?.status === 401) {
         return {
           success: false,
-          error: "Invalid OpenAI API key. Please check your settings."
+          error: this.formatProviderError(provider, error, "Auth")
         };
       } else if (error?.response?.status === 429) {
         return {
           success: false,
-          error: "OpenAI API rate limit exceeded or insufficient credits. Please try again later."
+          error: this.formatProviderError(provider, error, "Rate limit / quota")
         };
       } else if (error?.response?.status === 500) {
         return {
           success: false,
-          error: "OpenAI server error. Please try again later."
+          error: this.formatProviderError(provider, error, "Server error")
         };
       }
 
       console.error("API Error Details:", error);
       return { 
         success: false, 
-        error: error.message || "Failed to process screenshots. Please try again." 
+        error: this.formatProviderError(provider, error, "Processing screenshots")
       };
     }
   }
@@ -850,7 +869,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
 
           // Make API request to Gemini
           const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.solutionModel || "gemini-3-flash-latest"}:generateContent?key=${this.geminiApiKey}`,
             {
               contents: geminiMessages,
               generationConfig: {
@@ -872,7 +891,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
           console.error("Error using Gemini API for solution:", error);
           return {
             success: false,
-            error: "Failed to generate solution with Gemini API. Please check your API key or try again later."
+            error: this.formatProviderError("gemini", error, "Solution generation")
           };
         }
       } else if (config.apiProvider === "anthropic") {
@@ -924,7 +943,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
 
           return {
             success: false,
-            error: "Failed to generate solution with Anthropic API. Please check your API key or try again later."
+            error: this.formatProviderError("anthropic", error, "Solution generation")
           };
         }
       }
@@ -1009,17 +1028,17 @@ Your solution should be efficient, well-commented, and handle edge cases.
       if (error?.response?.status === 401) {
         return {
           success: false,
-          error: "Invalid OpenAI API key. Please check your settings."
+          error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Auth")
         };
       } else if (error?.response?.status === 429) {
         return {
           success: false,
-          error: "OpenAI API rate limit exceeded or insufficient credits. Please try again later."
+          error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Rate limit / quota")
         };
       }
       
       console.error("Solution generation error:", error);
-      return { success: false, error: error.message || "Failed to generate solution" };
+      return { success: false, error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Solution generation") };
     }
   }
 
@@ -1171,7 +1190,7 @@ If you include code examples, use proper markdown code blocks with language spec
           }
 
           const response = await axios.default.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-2.0-flash"}:generateContent?key=${this.geminiApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${config.debuggingModel || "gemini-3-flash-latest"}:generateContent?key=${this.geminiApiKey}`,
             {
               contents: geminiMessages,
               generationConfig: {
@@ -1193,7 +1212,7 @@ If you include code examples, use proper markdown code blocks with language spec
           console.error("Error using Gemini API for debugging:", error);
           return {
             success: false,
-            error: "Failed to process debug request with Gemini API. Please check your API key or try again later."
+            error: this.formatProviderError("gemini", error, "Debugging")
           };
         }
       } else if (config.apiProvider === "anthropic") {
@@ -1282,7 +1301,7 @@ If you include code examples, use proper markdown code blocks with language spec
           
           return {
             success: false,
-            error: "Failed to process debug request with Anthropic API. Please check your API key or try again later."
+            error: this.formatProviderError("anthropic", error, "Debugging")
           };
         }
       }
@@ -1327,7 +1346,7 @@ If you include code examples, use proper markdown code blocks with language spec
       return { success: true, data: response };
     } catch (error: any) {
       console.error("Debug processing error:", error);
-      return { success: false, error: error.message || "Failed to process debug request" };
+      return { success: false, error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Debug processing") };
     }
   }
 

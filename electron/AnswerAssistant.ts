@@ -8,6 +8,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as axios from 'axios';
 import { configHelper, CandidateProfile } from './ConfigHelper';
 import { IConversationManager } from './ConversationManager';
+import {
+  APIProvider,
+  DEFAULT_ANSWER_MODELS,
+} from "../shared/aiModels";
 
 // Interface for Gemini API requests
 interface GeminiMessage {
@@ -45,9 +49,19 @@ export class AnswerAssistant implements IAnswerAssistant {
   private openai: OpenAI | null = null;
   private geminiApiKey: string | null = null;
   private anthropic: Anthropic | null = null;
-  private readonly defaultOpenAIModel: string = 'gpt-4o-mini';
-  private readonly defaultGeminiModel: string = 'gemini-2.0-flash';
-  private readonly defaultAnthropicModel: string = 'claude-3-7-sonnet-20250219';
+  private readonly defaultModels: Record<APIProvider, string> = DEFAULT_ANSWER_MODELS;
+
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
+    const status =
+      typeof error?.status === "number"
+        ? error.status
+        : typeof error?.response?.status === "number"
+          ? error.response.status
+          : undefined;
+    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
+    const statusPart = status ? ` (status ${status})` : "";
+    return `[${provider}] ${context} failed${statusPart}: ${message}`;
+  }
 
   constructor() {
     this.initializeAIClients();
@@ -128,7 +142,7 @@ export class AnswerAssistant implements IAnswerAssistant {
 
       if (config.apiProvider === "openai" && this.openai) {
         const response = await this.openai.chat.completions.create({
-          model: this.defaultOpenAIModel,
+          model: this.defaultModels.openai,
           messages: [
             {
               role: 'system',
@@ -157,7 +171,7 @@ export class AnswerAssistant implements IAnswerAssistant {
         ];
 
         const response = await axios.default.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/${this.defaultGeminiModel}:generateContent?key=${this.geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${this.defaultModels.gemini}:generateContent?key=${this.geminiApiKey}`,
           {
             contents: geminiMessages,
             generationConfig: {
@@ -173,7 +187,7 @@ export class AnswerAssistant implements IAnswerAssistant {
         }
       } else if (config.apiProvider === "anthropic" && this.anthropic) {
         const response = await this.anthropic.messages.create({
-          model: this.defaultAnthropicModel,
+          model: this.defaultModels.anthropic,
           max_tokens: 500,
           messages: [
             {
@@ -201,13 +215,14 @@ export class AnswerAssistant implements IAnswerAssistant {
       console.error('Error generating suggestions:', error);
       
       // Provide specific error messages based on provider
-      if (error.status === 401) {
-        throw new Error(`Invalid API key. Please check your ${config.apiProvider} API key in settings.`);
-      } else if (error.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again in a moment.');
+      const status = error?.status ?? error?.response?.status;
+      if (status === 401) {
+        throw new Error(this.formatProviderError(config.apiProvider, error, "Auth"));
+      } else if (status === 429) {
+        throw new Error(this.formatProviderError(config.apiProvider, error, "Rate limit"));
       }
-      
-      throw new Error(`Failed to generate suggestions: ${error.message || 'Unknown error'}`);
+
+      throw new Error(this.formatProviderError(config.apiProvider, error, "Answer suggestion generation"));
     }
   }
 
