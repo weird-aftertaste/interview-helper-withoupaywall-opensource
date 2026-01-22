@@ -49,7 +49,6 @@ export class AnswerAssistant implements IAnswerAssistant {
   private openai: OpenAI | null = null;
   private geminiApiKey: string | null = null;
   private anthropic: Anthropic | null = null;
-  private readonly defaultModels: Record<APIProvider, string> = DEFAULT_ANSWER_MODELS;
 
   private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
     const status =
@@ -139,10 +138,13 @@ export class AnswerAssistant implements IAnswerAssistant {
 
     try {
       let suggestionsText = '';
+      
+      // Get the configured answer model, fallback to default if not set
+      const answerModel = config.answerModel || DEFAULT_ANSWER_MODELS[config.apiProvider];
 
       if (config.apiProvider === "openai" && this.openai) {
         const response = await this.openai.chat.completions.create({
-          model: this.defaultModels.openai,
+          model: answerModel,
           messages: [
             {
               role: 'system',
@@ -171,7 +173,7 @@ export class AnswerAssistant implements IAnswerAssistant {
         ];
 
         const response = await axios.default.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/${this.defaultModels.gemini}:generateContent?key=${this.geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${answerModel}:generateContent?key=${this.geminiApiKey}`,
           {
             contents: geminiMessages,
             generationConfig: {
@@ -187,7 +189,7 @@ export class AnswerAssistant implements IAnswerAssistant {
         }
       } else if (config.apiProvider === "anthropic" && this.anthropic) {
         const response = await this.anthropic.messages.create({
-          model: this.defaultModels.anthropic,
+          model: answerModel,
           max_tokens: 500,
           messages: [
             {

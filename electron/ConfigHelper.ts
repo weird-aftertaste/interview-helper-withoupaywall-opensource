@@ -23,6 +23,7 @@ interface Config {
   extractionModel: string;
   solutionModel: string;
   debuggingModel: string;
+  answerModel: string;  // Model for AI answer suggestions in conversations
   speechRecognitionModel: string;  // Speech recognition model (Whisper for OpenAI)
   language: string;
   opacity: number;
@@ -37,6 +38,7 @@ export class ConfigHelper extends EventEmitter {
     extractionModel: DEFAULT_MODELS[DEFAULT_PROVIDER].extractionModel,
     solutionModel: DEFAULT_MODELS[DEFAULT_PROVIDER].solutionModel,
     debuggingModel: DEFAULT_MODELS[DEFAULT_PROVIDER].debuggingModel,
+    answerModel: DEFAULT_MODELS[DEFAULT_PROVIDER].answerModel,
     speechRecognitionModel:
       DEFAULT_MODELS.openai.speechRecognitionModel || "whisper-1",
     language: "python",
@@ -111,6 +113,13 @@ export class ConfigHelper extends EventEmitter {
             config.debuggingModel,
             config.apiProvider,
             "debuggingModel"
+          );
+        }
+        if (config.answerModel) {
+          config.answerModel = sanitizeModelSelection(
+            config.answerModel,
+            config.apiProvider,
+            "answerModel"
           );
         }
         
@@ -198,6 +207,7 @@ export class ConfigHelper extends EventEmitter {
         updates.extractionModel = defaults.extractionModel;
         updates.solutionModel = defaults.solutionModel;
         updates.debuggingModel = defaults.debuggingModel;
+        updates.answerModel = defaults.answerModel;
         // Speech recognition supported for OpenAI and Gemini
         if (defaults.speechRecognitionModel) {
           updates.speechRecognitionModel = defaults.speechRecognitionModel;
@@ -248,6 +258,13 @@ export class ConfigHelper extends EventEmitter {
           "debuggingModel"
         );
       }
+      if (updates.answerModel) {
+        updates.answerModel = sanitizeModelSelection(
+          updates.answerModel,
+          provider,
+          "answerModel"
+        );
+      }
       
       const newConfig = { ...currentConfig, ...updates };
       this.saveConfig(newConfig);
@@ -256,7 +273,8 @@ export class ConfigHelper extends EventEmitter {
       // This prevents re-initializing the AI client when only opacity changes
       if (updates.apiKey !== undefined || updates.apiProvider !== undefined || 
           updates.extractionModel !== undefined || updates.solutionModel !== undefined || 
-          updates.debuggingModel !== undefined || updates.speechRecognitionModel !== undefined || 
+          updates.debuggingModel !== undefined || updates.answerModel !== undefined ||
+          updates.speechRecognitionModel !== undefined || 
           updates.language !== undefined) {
         this.emit('config-updated', newConfig);
       }

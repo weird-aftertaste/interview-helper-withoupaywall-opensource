@@ -38,6 +38,9 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [debuggingModel, setDebuggingModel] = useState(
     DEFAULT_MODELS.openai.debuggingModel
   );
+  const [answerModel, setAnswerModel] = useState(
+    DEFAULT_MODELS.openai.answerModel
+  );
   const [speechRecognitionModel, setSpeechRecognitionModel] = useState("whisper-1");
   const [candidateProfile, setCandidateProfile] = useState<CandidateProfile>({
     name: "",
@@ -73,6 +76,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         extractionModel?: string;
         solutionModel?: string;
         debuggingModel?: string;
+        answerModel?: string;
         speechRecognitionModel?: string;
         candidateProfile?: CandidateProfile;
       }
@@ -92,6 +96,9 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           );
           setDebuggingModel(
             config.debuggingModel || providerDefaults.debuggingModel
+          );
+          setAnswerModel(
+            config.answerModel || providerDefaults.answerModel
           );
           setSpeechRecognitionModel(
             config.speechRecognitionModel ||
@@ -123,6 +130,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     setExtractionModel(defaults.extractionModel);
     setSolutionModel(defaults.solutionModel);
     setDebuggingModel(defaults.debuggingModel);
+    setAnswerModel(defaults.answerModel);
     setSpeechRecognitionModel(
       defaults.speechRecognitionModel || 
       (provider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
@@ -138,6 +146,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         extractionModel,
         solutionModel,
         debuggingModel,
+        answerModel,
         speechRecognitionModel,
         candidateProfile,
       });
@@ -415,13 +424,15 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                       const currentValue = 
                         category.key === 'extractionModel' ? extractionModel :
                         category.key === 'solutionModel' ? solutionModel :
-                        debuggingModel;
+                        category.key === 'debuggingModel' ? debuggingModel :
+                        answerModel;
                       
                       // Determine which setter function to use
                       const setValue = 
                         category.key === 'extractionModel' ? setExtractionModel :
                         category.key === 'solutionModel' ? setSolutionModel :
-                        setDebuggingModel;
+                        category.key === 'debuggingModel' ? setDebuggingModel :
+                        setAnswerModel;
                         
                       return (
                         <div

@@ -13,7 +13,8 @@ export type APIProvider = "openai" | "gemini" | "anthropic";
 export type ModelCategoryKey =
   | "extractionModel"
   | "solutionModel"
-  | "debuggingModel";
+  | "debuggingModel"
+  | "answerModel";
 
 export interface AIModel {
   id: string;
@@ -46,6 +47,7 @@ export const DEFAULT_MODELS: Record<
     extractionModel: string;
     solutionModel: string;
     debuggingModel: string;
+    answerModel: string;
     // Speech recognition is supported for OpenAI (Whisper) and Gemini (Audio Understanding)
     speechRecognitionModel?: string;
   }
@@ -54,18 +56,21 @@ export const DEFAULT_MODELS: Record<
     extractionModel: "gpt-4o",
     solutionModel: "gpt-4o",
     debuggingModel: "gpt-4o",
+    answerModel: "gpt-4o-mini",
     speechRecognitionModel: "whisper-1",
   },
   gemini: {
     extractionModel: "gemini-3-flash-preview",
     solutionModel: "gemini-3-flash-preview",
     debuggingModel: "gemini-3-flash-preview",
+    answerModel: "gemini-3-flash-preview",
     speechRecognitionModel: "gemini-3-flash-preview",
   },
   anthropic: {
     extractionModel: "claude-3-7-sonnet-20250219",
     solutionModel: "claude-3-7-sonnet-20250219",
     debuggingModel: "claude-3-7-sonnet-20250219",
+    answerModel: "claude-3-7-sonnet-20250219",
   },
 };
 
@@ -284,6 +289,65 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
           id: "claude-3-7-sonnet-20250219",
           name: "Claude 3.7 Sonnet",
           description: "Best for analyzing code and error messages",
+        },
+        {
+          id: "claude-3-5-sonnet-20241022",
+          name: "Claude 3.5 Sonnet",
+          description: "Balanced performance and speed",
+        },
+        {
+          id: "claude-3-opus-20240229",
+          name: "Claude 3 Opus",
+          description:
+            "Top-level intelligence, fluency, and understanding",
+        },
+      ],
+    },
+  },
+  {
+    key: "answerModel",
+    title: "Answer Suggestions",
+    description: "Model used to generate AI answer suggestions for conversation questions",
+    modelsByProvider: {
+      openai: [
+        {
+          id: "gpt-4o-mini",
+          name: "gpt-4o-mini",
+          description: "Fast and cost-effective for conversation suggestions",
+        },
+        {
+          id: "gpt-4o",
+          name: "gpt-4o",
+          description: "Best overall performance for answer suggestions",
+        },
+      ],
+      gemini: [
+        {
+          id: "gemini-3-flash-preview",
+          name: "Gemini 3 Flash (Preview)",
+          description: "Fast and efficient for conversation suggestions",
+        },
+        {
+          id: "gemini-3-pro-preview",
+          name: "Gemini 3 Pro (Preview)",
+          description: "Best performance for complex conversation contexts",
+        },
+        {
+          id: "gemini-1.5-pro",
+          name: "Gemini 1.5 Pro",
+          description: "Legacy model - use Gemini 3 for best results",
+        },
+        {
+          id: "gemini-1.5-flash",
+          name: "Gemini 1.5 Flash",
+          description: "Legacy model - use Gemini 3 Flash for best results",
+        },
+      ],
+      anthropic: [
+        {
+          id: "claude-3-7-sonnet-20250219",
+          name: "Claude 3.7 Sonnet",
+          description: "Best overall performance for answer suggestions",
         },
         {
           id: "claude-3-5-sonnet-20241022",
