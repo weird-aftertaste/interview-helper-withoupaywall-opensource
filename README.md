@@ -8,7 +8,7 @@
 > 
 > - This is a **small, non-profit, community-driven project** with zero financial incentive behind it
 > - The entire codebase is freely available for anyone to use, modify, or extend
-> - Want features like voice support? You're welcome to integrate tools like OpenAI's Whisper or other APIs
+> - Voice support is included and supports OpenAI Whisper and Groq Whisper
 > - New features should come through **community contributions** - it's unreasonable to expect a single maintainer to implement premium features for free
 > - The maintainer receives no portfolio benefit, monetary compensation, or recognition for this work
 > 
@@ -16,7 +16,7 @@
 
 > ## 🔑 API KEY INFORMATION - UPDATED
 >
-> We have tested and confirmed that **both Gemini and OpenAI APIs work properly** with the current version. If you are experiencing issues with your API keys:
+> We have tested and confirmed that **OpenAI, Gemini, and Anthropic APIs work properly** with the current version. Speech transcription also supports Groq Whisper. If you are experiencing issues with API keys:
 >
 > - Try deleting your API key entry from the config file located in your user data directory
 > - Log out and log back in to the application
@@ -27,7 +27,7 @@
 
 ## Free, Open-Source AI-Powered Interview Preparation Tool
 
-This project provides a powerful alternative to premium coding interview platforms. It delivers the core functionality of paid interview preparation tools but in a free, open-source package. Using your own OpenAI API key, you get access to advanced features like AI-powered problem analysis, solution generation, and debugging assistance - all running locally on your machine.
+This project provides a powerful alternative to premium coding interview platforms. It delivers the core functionality of paid interview preparation tools but in a free, open-source package. Using your own provider API key(s), you get access to advanced features like AI-powered problem analysis, solution generation, and debugging assistance - all running locally on your machine.
 
 ### Why This Exists
 
@@ -42,7 +42,7 @@ The best coding interview tools are often behind expensive paywalls, making them
 
 The codebase is designed to be adaptable:
 
-- **AI Models**: Though currently using OpenAI's models, you can modify the code to integrate with other providers like Claude, Deepseek, Llama, or any model with an API. All integration code is in `electron/ProcessingHelper.ts` and UI settings are in `src/components/Settings/SettingsDialog.tsx`.
+- **AI Models**: The app already supports OpenAI, Gemini, and Anthropic for generation, and OpenAI/Gemini/Groq for transcription. You can still extend it with providers like Claude, Deepseek, Llama, or any model with an API. Core integration code is in `electron/ProcessingHelper.ts` and `electron/TranscriptionHelper.ts`, and UI settings are in `src/components/Settings/SettingsDialog.tsx`.
 - **Languages**: Add support for additional programming languages
 - **Features**: Extend the functionality with new capabilities 
 - **UI**: Customize the interface to your preferences
@@ -53,13 +53,14 @@ All it takes is modest JavaScript/TypeScript knowledge and understanding of the 
 
 - 🎯 99% Invisibility: Undetectable window that bypasses most screen capture methods
 - 📸 Smart Screenshot Capture: Capture both question text and code separately for better analysis
-- 🤖 AI-Powered Analysis: Automatically extracts and analyzes coding problems using GPT-4o
+- 🤖 AI-Powered Analysis: Automatically extracts and analyzes coding problems using configurable OpenAI/Gemini/Anthropic models
 - 💡 Solution Generation: Get detailed explanations and solutions with time/space complexity analysis
 - 🔧 Real-time Debugging: Debug your code with AI assistance and structured feedback
-- 🎙️ Speech Recognition Helper: Record and transcribe interview conversations with AI-powered answer suggestions
+- 🎙️ Speech Recognition Helper: Record and transcribe interview conversations (OpenAI Whisper, Gemini audio models, or Groq Whisper) with AI-powered answer suggestions
 - 🎨 Advanced Window Management: Freely move, resize, change opacity, and zoom the window
-- 🔄 Model Selection: Choose between GPT-4o and GPT-4o-mini for different processing stages
-- 🔒 Privacy-Focused: Your API key and data never leave your computer except for OpenAI API calls
+- 🔄 Model Selection: Configure extraction/solution/debug and answer-assistant models per provider
+- 🌐 OpenAI Advanced Settings: Optional custom OpenAI base URL and custom model override
+- 🔒 Privacy-Focused: Your API key and data stay local except requests sent to your selected AI/transcription provider
 
 ## Global Commands
 
@@ -98,7 +99,8 @@ Note: The application is **NOT** invisible to:
 
 - Node.js (v16 or higher)
 - npm or bun package manager
-- OpenAI API Key (required for all AI features including speech recognition)
+- OpenAI, Gemini, or Anthropic API Key (required for AI generation features)
+- Optional Groq API Key (required only if you choose Groq for transcription)
 - Screen Recording Permission for Terminal/IDE
   - On macOS:
     1. Go to System Preferences > Security & Privacy > Privacy > Screen Recording
@@ -147,6 +149,11 @@ npm run clean
 stealth-run.bat
 ```
 
+**For Windows (hidden launcher, optional):**
+```bash
+stealth-run-hidden.vbs
+```
+
 **For macOS/Linux:**
 ```bash
 # Make the script executable first
@@ -190,7 +197,7 @@ The packaged applications will be available in the `release` directory.
 
 - **Window Manager Compatibility**: Some window management tools (like Rectangle Pro on macOS) may interfere with the app's window movement. Consider disabling them temporarily.
 
-- **API Usage**: Be mindful of your OpenAI API key's rate limits and credit usage. Vision API calls are more expensive than text-only calls.
+- **API Usage**: Be mindful of rate limits and credit usage for your selected provider. Vision calls are more expensive than text-only calls.
 
 - **LLM Customization**: You can easily customize the app to include LLMs like Claude, Deepseek, or Grok by modifying the API calls in `ProcessingHelper.ts` and related UI components.
 
@@ -198,6 +205,7 @@ The packaged applications will be available in the `release` directory.
   - Run `npm run clean` before starting the app for a fresh build
   - Use Ctrl+B/Cmd+B multiple times if the window doesn't appear
   - Adjust window opacity with Ctrl+[/]/Cmd+[/] if needed
+  - Some Windows systems may log Chromium cache warnings at startup; app startup can still succeed
   - For macOS: ensure script has execute permissions (`chmod +x stealth-run.sh`)
 
 ## Comparison with Paid Interview Tools
@@ -211,7 +219,7 @@ The packaged applications will be available in the `release` directory.
 | Multi-language Support | ✅ | ✅ |
 | Time/Space Complexity Analysis | ✅ | ✅ |
 | Window Management | ✅ | ✅ |
-| Speech Recognition | ✅ | ✅ (OpenAI Whisper) |
+| Speech Recognition | ✅ | ✅ (OpenAI Whisper + Gemini + Groq Whisper) |
 | AI Answer Suggestions | ✅ | ✅ (Context-aware) |
 | Conversation History | ✅ | ✅ |
 | Auth System | Required | None (Simplified) |
@@ -228,15 +236,18 @@ The packaged applications will be available in the `release` directory.
 - Vite
 - Tailwind CSS
 - Radix UI Components
-- OpenAI API (GPT-4o, GPT-4o-mini, Whisper)
+- OpenAI API
+- Google Gemini API
+- Anthropic API
+- Groq API (Whisper transcription)
 - Web Audio API (for speech recording)
 
 ## How It Works
 
 1. **Initial Setup**
    - Launch the invisible window
-   - Enter your OpenAI API key in the settings
-   - Choose your preferred model for extraction, solution generation, and debugging
+   - Enter your provider API key(s) in Settings
+   - Choose your preferred models for extraction, solution generation, debugging, and answer suggestions
 
 2. **Capturing Problem**
    - Use global shortcut [Control or Cmd + H] to take screenshots of code problems
@@ -245,9 +256,9 @@ The packaged applications will be available in the `release` directory.
 
 3. **Processing**
    - Press [Control or Cmd + Enter] to analyze the screenshots
-   - AI extracts problem requirements from the screenshots using GPT-4 Vision API
+   - AI extracts problem requirements from screenshots using the configured extraction model
    - The model generates an optimal solution based on the extracted information
-   - All analysis is done using your personal OpenAI API key
+   - Analysis uses your selected provider and model settings
 
 4. **Solution & Debugging**
    - View the generated solutions with detailed explanations
@@ -272,7 +283,7 @@ The packaged applications will be available in the `release` directory.
 7. **Speech Recognition Helper**
 
    - Record interview conversations using your microphone with [Control or Cmd + M]
-   - Automatically transcribe audio to text using OpenAI's Whisper API
+   - Automatically transcribe audio to text using OpenAI Whisper, Gemini audio models, or Groq Whisper
    - Toggle between "Interviewer" and "You" (Interviewee) speaker modes
    - Maintain conversation history with timestamps for both speakers
    - Get AI-powered answer suggestions when the interviewer asks questions
@@ -281,12 +292,12 @@ The packaged applications will be available in the `release` directory.
      - Your previous answers for consistency
      - Screenshot context (if coding problems are captured)
    - View real-time transcription and suggestions in the Conversations view
-   - All audio processing happens locally; only transcription requests are sent to OpenAI
+   - All audio capture happens locally; only transcription requests are sent to your selected transcription provider
    - Supports both coding interviews (with screenshot context) and behavioral interviews
 
 ## Adding More AI Models
 
-This application is built with extensibility in mind. You can easily add support for additional LLMs alongside the existing OpenAI integration:
+This application is built with extensibility in mind. You can easily add support for additional LLMs alongside the existing OpenAI/Gemini/Anthropic integrations:
 
 - You can add Claude, Deepseek, Grok, or any other AI model as alternative options
 - The application architecture allows for multiple LLM backends to coexist
@@ -296,33 +307,37 @@ To add new models, simply extend the API integration in `electron/ProcessingHelp
 
 ## Configuration
 
-- **OpenAI API Key**: Your personal API key is stored locally and only used for API calls to OpenAI
-- **Model Selection**: You can choose between GPT-4o and GPT-4o-mini for each stage of processing:
+- **API Keys**: Provider keys are stored locally and only used for API calls to the selected provider(s)
+- **Model Selection**: Configure provider-specific models for each stage of processing:
   - Problem Extraction: Analyzes screenshots to understand the coding problem
   - Solution Generation: Creates optimized solutions with explanations
   - Debugging: Provides detailed analysis of errors and improvement suggestions
-- **Speech Recognition Model**: Configure the speech-to-text model for transcription:
-  - Currently supports OpenAI's Whisper-1 model
-  - Only available when using OpenAI as the API provider
-  - Configured in Settings > Speech Recognition Model
+- **OpenAI Advanced Options**:
+  - Optional custom OpenAI base URL
+  - Optional custom OpenAI model override
+  - If your custom OpenAI-compatible endpoint does not support `/audio/transcriptions`, use Gemini or Groq for transcription
+- **Transcription Settings**:
+  - Transcription provider: OpenAI, Groq, or Gemini
+  - Whisper model selection for OpenAI/Groq and Gemini model selection in Settings
 - **Language**: Select your preferred programming language for solutions
 - **Window Controls**: Adjust opacity, position, and zoom level using keyboard shortcuts
 - **All settings are stored locally** in your user data directory and persist between sessions
 
 ### Speech Recognition Helper Configuration
 
-The Speech Recognition Helper uses OpenAI's Whisper API for transcription. To use this feature:
+The Speech Recognition Helper supports OpenAI Whisper, Gemini audio models, and Groq Whisper transcription. To use this feature:
 
-1. **API Provider**: Must be set to OpenAI (not Gemini or Anthropic)
-2. **Speech Recognition Model**: Select "whisper-1" in Settings
-3. **Microphone Access**: Grant microphone permissions when prompted
-4. **Usage**: 
+1. **Transcription Provider**: Choose OpenAI, Gemini, or Groq in Settings
+2. **API Key**: Provide the matching API key for your selected provider
+3. **Speech Recognition Model**: Select a supported model in Settings
+4. **Microphone Access**: Grant microphone permissions when prompted
+5. **Usage**: 
    - Press [Control or Cmd + M] to start/stop recording
    - Toggle speaker mode between Interviewer and You (Interviewee)
    - View transcribed conversation and AI suggestions in the Conversations view
    - Suggestions automatically appear when interviewer questions are detected
 
-**Note**: Speech recognition requires an active OpenAI API key with sufficient credits. Audio is processed locally and only sent to OpenAI for transcription. Conversation history is stored locally and never transmitted except for transcription requests.
+**Note**: Speech recognition requires an active API key for the selected transcription provider. Audio is captured locally and only sent for transcription. Conversation history remains local except transcription requests.
 
 ## License
 
