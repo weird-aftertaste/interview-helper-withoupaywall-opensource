@@ -301,7 +301,7 @@ const Debug: React.FC<DebugProps> = ({
       />
 
       {/* Main Content */}
-      <div className="w-full text-sm text-black bg-black/60 rounded-md">
+      <div className="w-full text-sm text-gray-100 bg-black/60 rounded-md">
         <div className="rounded-lg overflow-hidden">
           <div className="px-4 py-3 space-y-4">
             {/* Thoughts Section */}

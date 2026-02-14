@@ -22,6 +22,7 @@ export interface ITranscriptionHelper {
 
 export class TranscriptionHelper implements ITranscriptionHelper {
   private openai: OpenAI | null = null;
+  private groqOpenAI: OpenAI | null = null;
   private geminiApiKey: string | null = null;
   private anthropic: Anthropic | null = null;
   private readonly tempDir: string;
@@ -29,6 +30,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
   // Default models for each provider
   private readonly defaultOpenAIModel: string = 'whisper-1';
   private readonly defaultGeminiModel: string = 'gemini-3-flash-preview'; // Gemini model with audio understanding support
+  private readonly defaultGroqModel: string = 'whisper-large-v3-turbo';
   private readonly defaultAnthropicModel: string = ''; // To be set when Anthropic speech recognition is available
 
   constructor() {
@@ -51,6 +53,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
     
     // Reset all clients
     this.openai = null;
+    this.groqOpenAI = null;
     this.geminiApiKey = null;
     this.anthropic = null;
     
@@ -58,28 +61,41 @@ export class TranscriptionHelper implements ITranscriptionHelper {
       return;
     }
     
-    if (config.apiProvider === "openai") {
-      this.openai = new OpenAI({ apiKey: config.apiKey });
+    const transcriptionProvider =
+      config.transcriptionProvider ||
+      (config.apiProvider === "openai" || config.apiProvider === "gemini"
+        ? config.apiProvider
+        : "openai");
+
+    if (transcriptionProvider === "openai") {
+      this.openai = new OpenAI({
+        apiKey: config.apiKey,
+        baseURL: config.openaiBaseUrl?.trim() || undefined,
+      });
       console.log("OpenAI transcription client initialized");
-    } else if (config.apiProvider === "gemini") {
+    } else if (transcriptionProvider === "gemini") {
       this.geminiApiKey = config.apiKey;
       console.log("Gemini API key set for audio understanding");
-    } else if (config.apiProvider === "anthropic") {
-      // Future: Initialize Anthropic client when speech recognition is available
-      this.anthropic = new Anthropic({ apiKey: config.apiKey });
-      console.log("Anthropic client initialized (speech recognition not yet available)");
+    } else if (transcriptionProvider === "groq") {
+      if (config.groqApiKey && config.groqApiKey.trim().length > 0) {
+        this.groqOpenAI = new OpenAI({
+          apiKey: config.groqApiKey,
+          baseURL: 'https://api.groq.com/openai/v1',
+        });
+        console.log("Groq transcription client initialized");
+      }
     }
   }
 
   /**
    * Checks if the current provider supports speech recognition
    */
-  private isSpeechRecognitionSupported(provider: "openai" | "gemini" | "anthropic"): boolean {
+  private isSpeechRecognitionSupported(provider: "openai" | "gemini" | "anthropic" | "groq"): boolean {
     // OpenAI (Whisper) and Gemini (Audio Understanding) support speech recognition
-    return provider === "openai" || provider === "gemini";
+    return provider === "openai" || provider === "gemini" || provider === "groq";
   }
 
-  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic" | "groq", error: any, context: string): string {
     const status =
       typeof error?.status === "number"
         ? error.status
@@ -112,10 +128,15 @@ export class TranscriptionHelper implements ITranscriptionHelper {
     mimeType: string = 'audio/webm'
   ): Promise<TranscriptionResult> {
     const config = configHelper.loadConfig();
+    const transcriptionProvider =
+      config.transcriptionProvider ||
+      (config.apiProvider === "openai" || config.apiProvider === "gemini"
+        ? config.apiProvider
+        : "openai");
     
     // Check if speech recognition is supported for the current provider
-    if (!this.isSpeechRecognitionSupported(config.apiProvider)) {
-      throw new Error(`Speech recognition is currently only supported with OpenAI or Gemini providers. Please switch to one of these providers in settings.`);
+    if (!this.isSpeechRecognitionSupported(transcriptionProvider)) {
+      throw new Error(`Speech recognition is currently only supported with OpenAI, Gemini, or Groq providers. Please switch to one of these providers in settings.`);
     }
 
     if (!audioBuffer || audioBuffer.length === 0) {
@@ -123,14 +144,14 @@ export class TranscriptionHelper implements ITranscriptionHelper {
     }
 
     // Route to the appropriate provider's transcription method
-    if (config.apiProvider === "openai") {
+    if (transcriptionProvider === "openai") {
       return this.transcribeWithOpenAI(audioBuffer, mimeType);
-    } else if (config.apiProvider === "gemini") {
+    } else if (transcriptionProvider === "gemini") {
       return this.transcribeWithGemini(audioBuffer, mimeType);
-    } else if (config.apiProvider === "anthropic") {
-      return this.transcribeWithAnthropic(audioBuffer, mimeType);
+    } else if (transcriptionProvider === "groq") {
+      return this.transcribeWithGroq(audioBuffer, mimeType);
     } else {
-      throw new Error(`Unsupported API provider: ${config.apiProvider}`);
+      throw new Error(`Unsupported transcription provider: ${transcriptionProvider}`);
     }
   }
 
@@ -143,6 +164,13 @@ export class TranscriptionHelper implements ITranscriptionHelper {
   ): Promise<TranscriptionResult> {
     if (!this.openai) {
       throw new Error('OpenAI client not initialized. Please set OpenAI API key in settings.');
+    }
+
+    const currentConfig = configHelper.loadConfig();
+    if (currentConfig.openaiBaseUrl?.trim()) {
+      throw new Error(
+        'OpenAI transcription is not available with a custom OpenAI endpoint. Use OpenAI official endpoint for transcription, or switch transcription provider to Groq/Gemini.'
+      );
     }
 
     const tempPath = path.join(this.tempDir, `audio-${Date.now()}-${Math.random().toString(36).substring(7)}.webm`);
@@ -190,6 +218,56 @@ export class TranscriptionHelper implements ITranscriptionHelper {
       }
 
       throw new Error(this.formatProviderError("openai", error, "Transcription"));
+    }
+  }
+
+  /**
+   * Transcribes audio using Groq Whisper through OpenAI-compatible endpoint
+   */
+  private async transcribeWithGroq(
+    audioBuffer: Buffer,
+    mimeType: string
+  ): Promise<TranscriptionResult> {
+    if (!this.groqOpenAI) {
+      throw new Error('Groq client not initialized. Please set Groq API key in settings.');
+    }
+
+    const tempPath = path.join(this.tempDir, `audio-${Date.now()}-${Math.random().toString(36).substring(7)}.webm`);
+
+    try {
+      fs.writeFileSync(tempPath, audioBuffer);
+      const file = fs.createReadStream(tempPath);
+
+      const config = configHelper.loadConfig();
+      const groqModel = config.groqWhisperModel || config.speechRecognitionModel || this.defaultGroqModel;
+
+      const transcription = await this.groqOpenAI.audio.transcriptions.create({
+        file,
+        model: groqModel,
+        language: 'en',
+        response_format: 'verbose_json',
+      });
+
+      this.cleanupTempFile(tempPath);
+
+      return {
+        text: transcription.text,
+        language: transcription.language,
+      };
+    } catch (error: any) {
+      this.cleanupTempFile(tempPath);
+      console.error('Groq transcription error:', error);
+
+      const status = error?.status ?? error?.response?.status;
+      if (status === 401) {
+        throw new Error(this.formatProviderError("groq", error, "Auth"));
+      } else if (status === 429) {
+        throw new Error(this.formatProviderError("groq", error, "Rate limit"));
+      } else if (status === 400) {
+        throw new Error(this.formatProviderError("groq", error, "Invalid audio file or request"));
+      }
+
+      throw new Error(this.formatProviderError("groq", error, "Transcription"));
     }
   }
 
@@ -328,7 +406,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Checks if any AI client is initialized
    */
   public isInitialized(): boolean {
-    return this.openai !== null || this.geminiApiKey !== null || this.anthropic !== null;
+    return this.openai !== null || this.groqOpenAI !== null || this.geminiApiKey !== null || this.anthropic !== null;
   }
 
   /**
@@ -336,6 +414,11 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    */
   public isSpeechRecognitionAvailable(): boolean {
     const config = configHelper.loadConfig();
-    return this.isSpeechRecognitionSupported(config.apiProvider) && this.isInitialized();
+    const transcriptionProvider =
+      config.transcriptionProvider ||
+      (config.apiProvider === "openai" || config.apiProvider === "gemini"
+        ? config.apiProvider
+        : "openai");
+    return this.isSpeechRecognitionSupported(transcriptionProvider) && this.isInitialized();
   }
 }

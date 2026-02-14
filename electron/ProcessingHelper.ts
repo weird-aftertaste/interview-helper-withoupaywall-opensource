@@ -70,6 +70,24 @@ export class ProcessingHelper {
     return `[${provider}] ${context} failed${statusPart}: ${message}`;
   }
 
+  private resolveOpenAIModel(selectedModel: string | undefined, openaiCustomModel?: string, openaiBaseUrl?: string): string {
+    const custom = openaiCustomModel?.trim();
+    if (custom) {
+      return custom;
+    }
+
+    const selected = selectedModel || "gpt-4o";
+    if (openaiBaseUrl?.trim() && (selected === "gpt-4o" || selected === "gpt-4o-mini")) {
+      return "gpt-5.3-codex";
+    }
+
+    return selected;
+  }
+
+  private shouldSendOpenAITemperature(openaiBaseUrl?: string): boolean {
+    return !openaiBaseUrl?.trim();
+  }
+
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
     this.screenshotHelper = deps.getScreenshotHelper()
@@ -110,6 +128,7 @@ export class ProcessingHelper {
         if (config.apiKey) {
           this.openaiClient = new OpenAI({ 
             apiKey: config.apiKey,
+            baseURL: config.openaiBaseUrl?.trim() || undefined,
             timeout: 60000, // 60 second timeout
             maxRetries: 2   // Retry up to 2 times
           });
@@ -517,7 +536,34 @@ export class ProcessingHelper {
           ? `Extract the coding problem details from these screenshots. Consider the following conversation context:\n\n${conversationContext}\n\nReturn in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
           : `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`;
         
-        const messages = [
+        const useCustomEndpointFormat = !!config.openaiBaseUrl?.trim();
+
+        const messages = useCustomEndpointFormat
+          ? [
+              {
+                role: "system" as const,
+                content: [
+                  {
+                    type: "input_text" as const,
+                    text: systemPrompt,
+                  },
+                ],
+              },
+              {
+                role: "user" as const,
+                content: [
+                  {
+                    type: "input_text" as const,
+                    text: userPrompt,
+                  },
+                  ...imageDataList.map((data) => ({
+                    type: "input_image" as const,
+                    image_url: `data:image/png;base64,${data}`,
+                  })),
+                ],
+              },
+            ]
+          : [
           {
             role: "system" as const, 
             content: systemPrompt
@@ -538,11 +584,18 @@ export class ProcessingHelper {
         ];
 
         // Send to OpenAI Vision API
+        const openaiModel = this.resolveOpenAIModel(
+          config.extractionModel,
+          config.openaiCustomModel,
+          config.openaiBaseUrl
+        );
         const extractionResponse = await this.openaiClient.chat.completions.create({
-          model: config.extractionModel || "gpt-4o",
-          messages: messages,
+          model: openaiModel,
+          messages: messages as any,
           max_tokens: 4000,
-          temperature: 0.2
+          ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
+            ? { temperature: 0.2 }
+            : {})
         });
 
         // Parse the response
@@ -834,14 +887,21 @@ Your solution should be efficient, well-commented, and handle edge cases.
         }
         
         // Send to OpenAI API
+        const openaiModel = this.resolveOpenAIModel(
+          config.solutionModel,
+          config.openaiCustomModel,
+          config.openaiBaseUrl
+        );
         const solutionResponse = await this.openaiClient.chat.completions.create({
-          model: config.solutionModel || "gpt-4o",
+          model: openaiModel,
           messages: [
             { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
             { role: "user", content: promptText }
           ],
           max_tokens: 4000,
-          temperature: 0.2
+          ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
+            ? { temperature: 0.2 }
+            : {})
         });
 
         responseContent = solutionResponse.choices[0].message.content;
@@ -1077,7 +1137,56 @@ Your solution should be efficient, well-commented, and handle edge cases.
           };
         }
         
-        const messages = [
+        const useCustomEndpointFormat = !!config.openaiBaseUrl?.trim();
+
+        const messages = useCustomEndpointFormat
+          ? [
+              {
+                role: "system" as const,
+                content: [
+                  {
+                    type: "input_text" as const,
+                    text: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+
+Your response MUST follow this exact structure with these section headers (use ### for headers):
+### Issues Identified
+- List each issue as a bullet point with clear explanation
+
+### Specific Improvements and Corrections
+- List specific code changes needed as bullet points
+
+### Optimizations
+- List any performance optimizations if applicable
+
+### Explanation of Changes Needed
+Here provide a clear explanation of why the changes are needed
+
+### Key Points
+- Summary bullet points of the most important takeaways
+
+If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`,
+                  },
+                ],
+              },
+              {
+                role: "user" as const,
+                content: [
+                  {
+                    type: "input_text" as const,
+                    text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
+1. What issues you found in my code
+2. Specific improvements and corrections
+3. Any optimizations that would make the solution better
+4. A clear explanation of the changes needed`,
+                  },
+                  ...imageDataList.map((data) => ({
+                    type: "input_image" as const,
+                    image_url: `data:image/png;base64,${data}`,
+                  })),
+                ],
+              },
+            ]
+          : [
           {
             role: "system" as const, 
             content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
@@ -1126,11 +1235,18 @@ If you include code examples, use proper markdown code blocks with language spec
           });
         }
 
+        const openaiModel = this.resolveOpenAIModel(
+          config.debuggingModel,
+          config.openaiCustomModel,
+          config.openaiBaseUrl
+        );
         const debugResponse = await this.openaiClient.chat.completions.create({
-          model: config.debuggingModel || "gpt-4o",
-          messages: messages,
+          model: openaiModel,
+          messages: messages as any,
           max_tokens: 4000,
-          temperature: 0.2
+          ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
+            ? { temperature: 0.2 }
+            : {})
         });
         
         debugContent = debugResponse.choices[0].message.content;

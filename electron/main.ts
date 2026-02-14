@@ -174,18 +174,18 @@ async function initializeHelpers() {
 
 // Auth callback handler
 
-// Register the interview-coder protocol
+// Register the wluely protocol
 if (process.platform === "darwin") {
-  app.setAsDefaultProtocolClient("interview-coder")
+  app.setAsDefaultProtocolClient("wluely")
 } else {
-  app.setAsDefaultProtocolClient("interview-coder", process.execPath, [
+  app.setAsDefaultProtocolClient("wluely", process.execPath, [
     path.resolve(process.argv[1] || "")
   ])
 }
 
 // Handle the protocol. In this case, we choose to show an Error Box.
 if (process.defaultApp && process.argv.length >= 2) {
-  app.setAsDefaultProtocolClient("interview-coder", process.execPath, [
+  app.setAsDefaultProtocolClient("wluely", process.execPath, [
     path.resolve(process.argv[1])
   ])
 }
@@ -524,7 +524,7 @@ function loadEnvVariables() {
 async function initializeApp() {
   try {
     // Set custom cache directory to prevent permission issues
-    const appDataPath = path.join(app.getPath('appData'), 'interview-coder-v1')
+    const appDataPath = path.join(app.getPath('appData'), 'wluely')
     const sessionPath = path.join(appDataPath, 'session')
     const tempPath = path.join(appDataPath, 'temp')
     const cachePath = path.join(appDataPath, 'cache')

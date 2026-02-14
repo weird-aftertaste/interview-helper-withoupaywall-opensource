@@ -62,6 +62,28 @@ export class AnswerAssistant implements IAnswerAssistant {
     return `[${provider}] ${context} failed${statusPart}: ${message}`;
   }
 
+  private resolveOpenAIAnswerModel(config: {
+    answerModel?: string;
+    openaiCustomModel?: string;
+    openaiBaseUrl?: string;
+  }): string {
+    const custom = config.openaiCustomModel?.trim();
+    if (custom) {
+      return custom;
+    }
+
+    const selected = config.answerModel || DEFAULT_ANSWER_MODELS.openai;
+    if (config.openaiBaseUrl?.trim() && (selected === "gpt-4o" || selected === "gpt-4o-mini")) {
+      return "gpt-5.3-codex";
+    }
+
+    return selected;
+  }
+
+  private shouldSendOpenAITemperature(openaiBaseUrl?: string): boolean {
+    return !openaiBaseUrl?.trim();
+  }
+
   constructor() {
     this.initializeAIClients();
     
@@ -87,7 +109,10 @@ export class AnswerAssistant implements IAnswerAssistant {
     }
     
     if (config.apiProvider === "openai") {
-      this.openai = new OpenAI({ apiKey: config.apiKey });
+      this.openai = new OpenAI({
+        apiKey: config.apiKey,
+        baseURL: config.openaiBaseUrl?.trim() || undefined,
+      });
     } else if (config.apiProvider === "gemini") {
       this.geminiApiKey = config.apiKey;
     } else if (config.apiProvider === "anthropic") {
@@ -140,7 +165,10 @@ export class AnswerAssistant implements IAnswerAssistant {
       let suggestionsText = '';
       
       // Get the configured answer model, fallback to default if not set
-      const answerModel = config.answerModel || DEFAULT_ANSWER_MODELS[config.apiProvider];
+      const answerModel =
+        config.apiProvider === "openai"
+          ? this.resolveOpenAIAnswerModel(config)
+          : config.answerModel || DEFAULT_ANSWER_MODELS[config.apiProvider];
 
       if (config.apiProvider === "openai" && this.openai) {
         const response = await this.openai.chat.completions.create({
@@ -155,7 +183,9 @@ export class AnswerAssistant implements IAnswerAssistant {
               content: contextPrompt
             }
           ],
-          temperature: 0.7,
+          ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
+            ? { temperature: 0.7 }
+            : {}),
           max_tokens: 500,
         });
 

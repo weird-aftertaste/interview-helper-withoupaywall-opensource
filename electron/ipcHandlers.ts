@@ -22,16 +22,22 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   })
   
   ipcMain.handle("validate-api-key", async (_event, apiKey) => {
+    const currentConfig = configHelper.loadConfig();
+
     // First check the format
-    if (!configHelper.isValidApiKeyFormat(apiKey)) {
+    if (!configHelper.isValidApiKeyFormat(apiKey, currentConfig.apiProvider, currentConfig.openaiBaseUrl)) {
       return { 
         valid: false, 
-        error: "Invalid API key format. OpenAI API keys start with 'sk-'" 
+        error: "Invalid API key format for the selected provider." 
       };
     }
     
-    // Then test the API key with OpenAI
-    const result = await configHelper.testApiKey(apiKey);
+    // Then test with selected provider
+    const result = await configHelper.testApiKey(
+      apiKey,
+      currentConfig.apiProvider,
+      currentConfig.openaiBaseUrl
+    );
     return result;
   })
 

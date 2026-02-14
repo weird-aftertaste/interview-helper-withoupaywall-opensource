@@ -20,6 +20,8 @@ import {
   DEFAULT_MODELS,
 } from "../../../shared/aiModels";
 
+type TranscriptionProvider = "openai" | "gemini" | "groq";
+
 interface SettingsDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -41,7 +43,12 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [answerModel, setAnswerModel] = useState(
     DEFAULT_MODELS.openai.answerModel
   );
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState("");
+  const [openaiCustomModel, setOpenaiCustomModel] = useState("");
+  const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>("openai");
   const [speechRecognitionModel, setSpeechRecognitionModel] = useState("whisper-1");
+  const [groqApiKey, setGroqApiKey] = useState("");
+  const [groqWhisperModel, setGroqWhisperModel] = useState("whisper-large-v3-turbo");
   const [candidateProfile, setCandidateProfile] = useState<CandidateProfile>({
     name: "",
     resume: "",
@@ -77,7 +84,12 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         solutionModel?: string;
         debuggingModel?: string;
         answerModel?: string;
+        openaiBaseUrl?: string;
+        openaiCustomModel?: string;
+        transcriptionProvider?: TranscriptionProvider;
         speechRecognitionModel?: string;
+        groqApiKey?: string;
+        groqWhisperModel?: string;
         candidateProfile?: CandidateProfile;
       }
 
@@ -100,11 +112,19 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           setAnswerModel(
             config.answerModel || providerDefaults.answerModel
           );
+          setOpenaiBaseUrl(config.openaiBaseUrl || "");
+          setOpenaiCustomModel(config.openaiCustomModel || "");
+          setTranscriptionProvider(
+            config.transcriptionProvider ||
+              (provider === "openai" || provider === "gemini" ? provider : "openai")
+          );
           setSpeechRecognitionModel(
             config.speechRecognitionModel ||
               providerDefaults.speechRecognitionModel ||
               (config.apiProvider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
           );
+          setGroqApiKey(config.groqApiKey || "");
+          setGroqWhisperModel(config.groqWhisperModel || "whisper-large-v3-turbo");
           setCandidateProfile(config.candidateProfile || {
             name: "",
             resume: "",
@@ -131,15 +151,35 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     setSolutionModel(defaults.solutionModel);
     setDebuggingModel(defaults.debuggingModel);
     setAnswerModel(defaults.answerModel);
-    setSpeechRecognitionModel(
-      defaults.speechRecognitionModel || 
-      (provider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
-    );
+  };
+
+  const handleTranscriptionProviderChange = (provider: TranscriptionProvider) => {
+    setTranscriptionProvider(provider);
+    if (provider === "openai") {
+      setSpeechRecognitionModel("whisper-1");
+    } else if (provider === "gemini" && speechRecognitionModel === "whisper-1") {
+      setSpeechRecognitionModel("gemini-3-flash-preview");
+    } else if (provider === "groq") {
+      setSpeechRecognitionModel(groqWhisperModel || "whisper-large-v3-turbo");
+    }
   };
 
   const handleSave = async () => {
     setIsLoading(true);
     try {
+      if (transcriptionProvider === "groq" && !groqApiKey.trim()) {
+        showToast("Error", "Groq API key is required when Groq transcription is selected", "error");
+        setIsLoading(false);
+        return;
+      }
+
+      const normalizedOpenaiBaseUrl = openaiBaseUrl.trim();
+      const normalizedOpenaiCustomModel = openaiCustomModel.trim();
+      const effectiveOpenaiCustomModel =
+        apiProvider === "openai" && normalizedOpenaiBaseUrl && !normalizedOpenaiCustomModel
+          ? "gpt-5.3-codex"
+          : normalizedOpenaiCustomModel;
+
       const result = await window.electronAPI.updateConfig({
         apiKey,
         apiProvider,
@@ -147,7 +187,12 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         solutionModel,
         debuggingModel,
         answerModel,
+        openaiBaseUrl: normalizedOpenaiBaseUrl,
+        openaiCustomModel: effectiveOpenaiCustomModel,
+        transcriptionProvider,
         speechRecognitionModel,
+        groqApiKey,
+        groqWhisperModel,
         candidateProfile,
       });
       
@@ -237,7 +282,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   />
                   <div className="flex flex-col">
                     <p className="font-medium text-white text-sm">OpenAI</p>
-                    <p className="text-xs text-white/60">GPT-4o models</p>
+                    <p className="text-xs text-white/60">OpenAI models</p>
                   </div>
                 </div>
               </div>
@@ -351,6 +396,40 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               )}
             </div>
           </div>
+
+          {apiProvider === "openai" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white" htmlFor="openaiBaseUrl">
+                OpenAI Base URL (optional)
+              </label>
+              <Input
+                id="openaiBaseUrl"
+                type="text"
+                value={openaiBaseUrl}
+                onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                placeholder="https://api.openai.com/v1"
+                className="bg-black/50 border-white/10 text-white"
+              />
+              <p className="text-xs text-white/50">
+                Leave empty to use the official OpenAI endpoint.
+              </p>
+
+              <label className="text-sm font-medium text-white" htmlFor="openaiCustomModel">
+                Custom OpenAI Model (optional)
+              </label>
+              <Input
+                id="openaiCustomModel"
+                type="text"
+                value={openaiCustomModel}
+                onChange={(e) => setOpenaiCustomModel(e.target.value)}
+                placeholder="gpt-4.1-mini"
+                className="bg-black/50 border-white/10 text-white"
+              />
+              <p className="text-xs text-white/50">
+                When set, this overrides OpenAI model selections for extraction, solution, debugging, and answer suggestions.
+              </p>
+            </div>
+          )}
           
           <div className="space-y-2 mt-4">
             <label className="text-sm font-medium text-white mb-2 block">Keyboard Shortcuts</label>
@@ -472,8 +551,28 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             <p className="text-xs text-white/60 mb-2">
               Model used for transcribing interview conversations
             </p>
-            
-            {apiProvider === "openai" ? (
+
+            <div className="flex gap-2">
+              {[
+                { id: "openai", label: "OpenAI" },
+                { id: "gemini", label: "Gemini" },
+                { id: "groq", label: "Groq" },
+              ].map((item) => (
+                <div
+                  key={item.id}
+                  className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
+                    transcriptionProvider === item.id
+                      ? "bg-white/10 border border-white/20"
+                      : "bg-black/30 border border-white/5 hover:bg-white/5"
+                  }`}
+                  onClick={() => handleTranscriptionProviderChange(item.id as TranscriptionProvider)}
+                >
+                  <p className="font-medium text-white text-xs text-center">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {transcriptionProvider === "openai" && (
               <div className="space-y-2">
                 <div
                   className={`p-2 rounded-lg cursor-pointer transition-colors ${
@@ -491,98 +590,76 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                     />
                     <div>
                       <p className="font-medium text-white text-xs">Whisper-1</p>
-                      <p className="text-xs text-white/60">OpenAI's speech-to-text model</p>
+                      <p className="text-xs text-white/60">OpenAI speech-to-text</p>
                     </div>
                   </div>
                 </div>
               </div>
-            ) : apiProvider === "gemini" ? (
+            )}
+
+            {transcriptionProvider === "gemini" && (
               <div className="space-y-2">
-                <div
-                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                    speechRecognitionModel === "gemini-1.5-flash"
-                      ? "bg-white/10 border border-white/20"
-                      : "bg-black/30 border border-white/5 hover:bg-white/5"
-                  }`}
-                  onClick={() => setSpeechRecognitionModel("gemini-1.5-flash")}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        speechRecognitionModel === "gemini-1.5-flash" ? "bg-white" : "bg-white/20"
-                      }`}
-                    />
-                    <div>
-                      <p className="font-medium text-white text-xs">Gemini 1.5 Flash</p>
-                      <p className="text-xs text-white/60">Fast and efficient audio understanding</p>
+                {[
+                  { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash", desc: "Fast and efficient audio understanding" },
+                  { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", desc: "Higher accuracy audio understanding" },
+                  { id: "gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)", desc: "Latest preview model with audio understanding" },
+                  { id: "gemini-3-pro-preview", label: "Gemini 3 Pro (Preview)", desc: "Best accuracy with audio understanding" },
+                ].map((model) => (
+                  <div
+                    key={model.id}
+                    className={`p-2 rounded-lg cursor-pointer transition-colors ${
+                      speechRecognitionModel === model.id
+                        ? "bg-white/10 border border-white/20"
+                        : "bg-black/30 border border-white/5 hover:bg-white/5"
+                    }`}
+                    onClick={() => setSpeechRecognitionModel(model.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-3 h-3 rounded-full ${
+                          speechRecognitionModel === model.id ? "bg-white" : "bg-white/20"
+                        }`}
+                      />
+                      <div>
+                        <p className="font-medium text-white text-xs">{model.label}</p>
+                        <p className="text-xs text-white/60">{model.desc}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div
-                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                    speechRecognitionModel === "gemini-1.5-pro"
-                      ? "bg-white/10 border border-white/20"
-                      : "bg-black/30 border border-white/5 hover:bg-white/5"
-                  }`}
-                  onClick={() => setSpeechRecognitionModel("gemini-1.5-pro")}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        speechRecognitionModel === "gemini-1.5-pro" ? "bg-white" : "bg-white/20"
-                      }`}
-                    />
-                    <div>
-                      <p className="font-medium text-white text-xs">Gemini 1.5 Pro</p>
-                      <p className="text-xs text-white/60">Higher accuracy audio understanding</p>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                    speechRecognitionModel === "gemini-3-flash-preview"
-                      ? "bg-white/10 border border-white/20"
-                      : "bg-black/30 border border-white/5 hover:bg-white/5"
-                  }`}
-                  onClick={() => setSpeechRecognitionModel("gemini-3-flash-preview")}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        speechRecognitionModel === "gemini-3-flash-preview" ? "bg-white" : "bg-white/20"
-                      }`}
-                    />
-                    <div>
-                      <p className="font-medium text-white text-xs">Gemini 3 Flash (Preview)</p>
-                      <p className="text-xs text-white/60">Latest preview model with audio understanding</p>
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                    speechRecognitionModel === "gemini-3-pro-preview"
-                      ? "bg-white/10 border border-white/20"
-                      : "bg-black/30 border border-white/5 hover:bg-white/5"
-                  }`}
-                  onClick={() => setSpeechRecognitionModel("gemini-3-pro-preview")}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        speechRecognitionModel === "gemini-3-pro-preview" ? "bg-white" : "bg-white/20"
-                      }`}
-                    />
-                    <div>
-                      <p className="font-medium text-white text-xs">Gemini 3 Pro (Preview)</p>
-                      <p className="text-xs text-white/60">Best accuracy with audio understanding</p>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
-            ) : (
-              <div className="p-3 rounded-lg bg-black/30 border border-white/10">
-                <p className="text-sm text-white/70">
-                  Speech recognition is only supported with OpenAI or Gemini. Please switch to one of these providers to use this feature.
+            )}
+
+            {transcriptionProvider === "groq" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white" htmlFor="groqApiKey">
+                  Groq API Key
+                </label>
+                <Input
+                  id="groqApiKey"
+                  type="password"
+                  value={groqApiKey}
+                  onChange={(e) => setGroqApiKey(e.target.value)}
+                  placeholder="gsk_..."
+                  className="bg-black/50 border-white/10 text-white"
+                />
+                <label className="text-sm font-medium text-white" htmlFor="groqWhisperModel">
+                  Groq Whisper Model
+                </label>
+                <Input
+                  id="groqWhisperModel"
+                  type="text"
+                  value={groqWhisperModel}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setGroqWhisperModel(value);
+                    setSpeechRecognitionModel(value || "whisper-large-v3-turbo");
+                  }}
+                  placeholder="whisper-large-v3-turbo"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+                <p className="text-xs text-white/60">
+                  Groq is used for transcription only. Main AI tasks still use your selected provider above.
                 </p>
               </div>
             )}

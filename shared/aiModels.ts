@@ -91,6 +91,9 @@ export const DEFAULT_ANSWER_MODELS: Record<APIProvider, string> = {
  */
 export const ALLOWED_MODELS: Record<APIProvider, string[]> = {
   openai: [
+    "gpt-5.3-codex",
+    "gpt-5.2",
+    "gpt-5.1-codex-max",
     "gpt-4o",
     "gpt-4o-mini",
   ],
@@ -122,6 +125,21 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
       "Model used to analyze screenshots and extract problem details",
     modelsByProvider: {
       openai: [
+        {
+          id: "gpt-5.3-codex",
+          name: "gpt-5.3-codex",
+          description: "Most capable coding-focused model",
+        },
+        {
+          id: "gpt-5.2",
+          name: "gpt-5.2",
+          description: "Strong general coding and reasoning model",
+        },
+        {
+          id: "gpt-5.1-codex-max",
+          name: "gpt-5.1-codex-max",
+          description: "Optimized for long-horizon coding tasks",
+        },
         {
           id: "gpt-4o",
           name: "gpt-4o",
@@ -181,6 +199,21 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
     description: "Model used to generate coding solutions",
     modelsByProvider: {
       openai: [
+        {
+          id: "gpt-5.3-codex",
+          name: "gpt-5.3-codex",
+          description: "Most capable coding-focused model",
+        },
+        {
+          id: "gpt-5.2",
+          name: "gpt-5.2",
+          description: "Strong general coding and reasoning model",
+        },
+        {
+          id: "gpt-5.1-codex-max",
+          name: "gpt-5.1-codex-max",
+          description: "Optimized for long-horizon coding tasks",
+        },
         {
           id: "gpt-4o",
           name: "gpt-4o",
@@ -246,6 +279,21 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
     modelsByProvider: {
       openai: [
         {
+          id: "gpt-5.3-codex",
+          name: "gpt-5.3-codex",
+          description: "Most capable coding-focused model",
+        },
+        {
+          id: "gpt-5.2",
+          name: "gpt-5.2",
+          description: "Strong general coding and reasoning model",
+        },
+        {
+          id: "gpt-5.1-codex-max",
+          name: "gpt-5.1-codex-max",
+          description: "Optimized for long-horizon coding tasks",
+        },
+        {
           id: "gpt-4o",
           name: "gpt-4o",
           description: "Best for analyzing code and error messages",
@@ -310,6 +358,21 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
     description: "Model used to generate AI answer suggestions for conversation questions",
     modelsByProvider: {
       openai: [
+        {
+          id: "gpt-5.3-codex",
+          name: "gpt-5.3-codex",
+          description: "High quality for interview answer generation",
+        },
+        {
+          id: "gpt-5.2",
+          name: "gpt-5.2",
+          description: "Strong general coding and reasoning model",
+        },
+        {
+          id: "gpt-5.1-codex-max",
+          name: "gpt-5.1-codex-max",
+          description: "Optimized for long-horizon coding tasks",
+        },
         {
           id: "gpt-4o-mini",
           name: "gpt-4o-mini",

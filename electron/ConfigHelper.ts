@@ -20,11 +20,16 @@ export interface CandidateProfile {
 interface Config {
   apiKey: string;
   apiProvider: APIProvider;  // Added provider selection
+  openaiBaseUrl?: string;
+  openaiCustomModel?: string;
   extractionModel: string;
   solutionModel: string;
   debuggingModel: string;
   answerModel: string;  // Model for AI answer suggestions in conversations
+  transcriptionProvider: "openai" | "gemini" | "groq";
   speechRecognitionModel: string;  // Speech recognition model (Whisper for OpenAI)
+  groqApiKey?: string;
+  groqWhisperModel?: string;
   language: string;
   opacity: number;
   candidateProfile?: CandidateProfile;  // Candidate profile for personalized AI suggestions
@@ -35,12 +40,17 @@ export class ConfigHelper extends EventEmitter {
   private defaultConfig: Config = {
     apiKey: "",
     apiProvider: DEFAULT_PROVIDER,
+    openaiBaseUrl: "",
+    openaiCustomModel: "",
     extractionModel: DEFAULT_MODELS[DEFAULT_PROVIDER].extractionModel,
     solutionModel: DEFAULT_MODELS[DEFAULT_PROVIDER].solutionModel,
     debuggingModel: DEFAULT_MODELS[DEFAULT_PROVIDER].debuggingModel,
     answerModel: DEFAULT_MODELS[DEFAULT_PROVIDER].answerModel,
+    transcriptionProvider: DEFAULT_PROVIDER === "gemini" ? "gemini" : "openai",
     speechRecognitionModel:
       DEFAULT_MODELS.openai.speechRecognitionModel || "whisper-1",
+    groqApiKey: "",
+    groqWhisperModel: "whisper-large-v3-turbo",
     language: "python",
     opacity: 1.0,
     candidateProfile: {
@@ -123,11 +133,36 @@ export class ConfigHelper extends EventEmitter {
           );
         }
         
+        // Normalize advanced OpenAI fields
+        if (typeof config.openaiBaseUrl === "string") {
+          config.openaiBaseUrl = config.openaiBaseUrl.trim();
+        }
+        if (typeof config.openaiCustomModel === "string") {
+          config.openaiCustomModel = config.openaiCustomModel.trim();
+        }
+
+        // Ensure transcriptionProvider is valid
+        if (
+          config.transcriptionProvider !== "openai" &&
+          config.transcriptionProvider !== "gemini" &&
+          config.transcriptionProvider !== "groq"
+        ) {
+          if (config.apiProvider === "openai" || config.apiProvider === "gemini") {
+            config.transcriptionProvider = config.apiProvider;
+          } else {
+            config.transcriptionProvider = "openai";
+          }
+        }
+
+        if (typeof config.groqWhisperModel !== "string" || config.groqWhisperModel.trim().length === 0) {
+          config.groqWhisperModel = "whisper-large-v3-turbo";
+        }
+
         // Ensure speechRecognitionModel is valid
         if (config.speechRecognitionModel) {
-          if (config.apiProvider === "openai" && config.speechRecognitionModel !== "whisper-1") {
+          if (config.transcriptionProvider === "openai" && config.speechRecognitionModel !== "whisper-1") {
             config.speechRecognitionModel = "whisper-1";
-          } else if (config.apiProvider === "gemini") {
+          } else if (config.transcriptionProvider === "gemini") {
             const allowedGeminiSpeechModels = [
               "gemini-1.5-flash",
               "gemini-1.5-pro",
@@ -138,9 +173,17 @@ export class ConfigHelper extends EventEmitter {
             if (!allowedGeminiSpeechModels.includes(config.speechRecognitionModel)) {
               config.speechRecognitionModel = DEFAULT_MODELS.gemini.speechRecognitionModel || "gemini-3-flash-preview";
             }
+          } else if (config.transcriptionProvider === "groq") {
+            config.speechRecognitionModel = config.groqWhisperModel;
           }
         } else if (!config.speechRecognitionModel) {
-          config.speechRecognitionModel = this.defaultConfig.speechRecognitionModel;
+          if (config.transcriptionProvider === "gemini") {
+            config.speechRecognitionModel = DEFAULT_MODELS.gemini.speechRecognitionModel || "gemini-3-flash-preview";
+          } else if (config.transcriptionProvider === "groq") {
+            config.speechRecognitionModel = config.groqWhisperModel;
+          } else {
+            config.speechRecognitionModel = this.defaultConfig.speechRecognitionModel;
+          }
         }
         
         return {
@@ -212,14 +255,42 @@ export class ConfigHelper extends EventEmitter {
         if (defaults.speechRecognitionModel) {
           updates.speechRecognitionModel = defaults.speechRecognitionModel;
         }
+        if (updates.apiProvider === "openai" || updates.apiProvider === "gemini") {
+          updates.transcriptionProvider = updates.apiProvider;
+        }
+      }
+
+      // Normalize optional advanced fields
+      if (typeof updates.openaiBaseUrl === "string") {
+        updates.openaiBaseUrl = updates.openaiBaseUrl.trim();
+      }
+      if (typeof updates.openaiCustomModel === "string") {
+        updates.openaiCustomModel = updates.openaiCustomModel.trim();
+      }
+      if (typeof updates.groqWhisperModel === "string") {
+        updates.groqWhisperModel = updates.groqWhisperModel.trim();
+      }
+
+      // Validate transcription provider
+      const transcriptionProvider =
+        updates.transcriptionProvider || currentConfig.transcriptionProvider || "openai";
+      if (
+        transcriptionProvider !== "openai" &&
+        transcriptionProvider !== "gemini" &&
+        transcriptionProvider !== "groq"
+      ) {
+        updates.transcriptionProvider = "openai";
       }
       
       // Validate speech recognition model
       if (updates.speechRecognitionModel) {
-        if (provider === "openai" && updates.speechRecognitionModel !== "whisper-1") {
+        const effectiveTranscriptionProvider =
+          updates.transcriptionProvider || currentConfig.transcriptionProvider || "openai";
+
+        if (effectiveTranscriptionProvider === "openai" && updates.speechRecognitionModel !== "whisper-1") {
           console.warn(`Invalid speech recognition model: ${updates.speechRecognitionModel}. Only whisper-1 is supported for OpenAI.`);
           updates.speechRecognitionModel = "whisper-1";
-        } else if (provider === "gemini") {
+        } else if (effectiveTranscriptionProvider === "gemini") {
           // Validate Gemini models that support audio understanding
           const allowedGeminiSpeechModels = [
             "gemini-1.5-flash",
@@ -229,11 +300,19 @@ export class ConfigHelper extends EventEmitter {
             "gemini-2.0-flash-exp"
           ];
           if (!allowedGeminiSpeechModels.includes(updates.speechRecognitionModel)) {
-            const defaultModel = DEFAULT_MODELS[provider].speechRecognitionModel || "gemini-3-flash-preview";
+            const defaultModel = DEFAULT_MODELS.gemini.speechRecognitionModel || "gemini-3-flash-preview";
             console.warn(`Invalid Gemini speech recognition model: ${updates.speechRecognitionModel}. Using default: ${defaultModel}`);
             updates.speechRecognitionModel = defaultModel;
           }
+        } else if (effectiveTranscriptionProvider === "groq") {
+          updates.groqWhisperModel = updates.speechRecognitionModel;
         }
+      }
+
+      if (updates.transcriptionProvider === "groq") {
+        const groqModel = updates.groqWhisperModel || currentConfig.groqWhisperModel || "whisper-large-v3-turbo";
+        updates.groqWhisperModel = groqModel;
+        updates.speechRecognitionModel = groqModel;
       }
       
       // Sanitize model selections in the updates
@@ -274,6 +353,9 @@ export class ConfigHelper extends EventEmitter {
       if (updates.apiKey !== undefined || updates.apiProvider !== undefined || 
           updates.extractionModel !== undefined || updates.solutionModel !== undefined || 
           updates.debuggingModel !== undefined || updates.answerModel !== undefined ||
+          updates.openaiBaseUrl !== undefined || updates.openaiCustomModel !== undefined ||
+          updates.transcriptionProvider !== undefined || updates.groqApiKey !== undefined ||
+          updates.groqWhisperModel !== undefined ||
           updates.speechRecognitionModel !== undefined || 
           updates.language !== undefined) {
         this.emit('config-updated', newConfig);
@@ -297,7 +379,11 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Validate the API key format
    */
-  public isValidApiKeyFormat(apiKey: string, provider?: "openai" | "gemini" | "anthropic" ): boolean {
+  public isValidApiKeyFormat(
+    apiKey: string,
+    provider?: "openai" | "gemini" | "anthropic",
+    openaiBaseUrl?: string
+  ): boolean {
     // If provider is not specified, attempt to auto-detect
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -312,6 +398,9 @@ export class ConfigHelper extends EventEmitter {
     }
     
     if (provider === "openai") {
+      if (openaiBaseUrl && openaiBaseUrl.trim().length > 0) {
+        return apiKey.trim().length >= 10;
+      }
       // Basic format validation for OpenAI API keys
       return /^sk-[a-zA-Z0-9]{32,}$/.test(apiKey.trim());
     } else if (provider === "gemini") {
@@ -360,7 +449,7 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Test API key with the selected provider
    */
-  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic"): Promise<{valid: boolean, error?: string}> {
+  public async testApiKey(apiKey: string, provider?: "openai" | "gemini" | "anthropic", baseURL?: string): Promise<{valid: boolean, error?: string}> {
     // Auto-detect provider based on key format if not specified
     if (!provider) {
       if (apiKey.trim().startsWith('sk-')) {
@@ -378,7 +467,7 @@ export class ConfigHelper extends EventEmitter {
     }
     
     if (provider === "openai") {
-      return this.testOpenAIKey(apiKey);
+      return this.testOpenAIKey(apiKey, baseURL);
     } else if (provider === "gemini") {
       return this.testGeminiKey(apiKey);
     } else if (provider === "anthropic") {
@@ -391,9 +480,12 @@ export class ConfigHelper extends EventEmitter {
   /**
    * Test OpenAI API key
    */
-  private async testOpenAIKey(apiKey: string): Promise<{valid: boolean, error?: string}> {
+  private async testOpenAIKey(apiKey: string, baseURL?: string): Promise<{valid: boolean, error?: string}> {
     try {
-      const openai = new OpenAI({ apiKey });
+      const openai = new OpenAI({ 
+        apiKey,
+        baseURL: baseURL?.trim() || undefined,
+      });
       // Make a simple API call to test the key
       await openai.models.list();
       return { valid: true };
