@@ -3,7 +3,7 @@
  * Follows Single Responsibility Principle - only handles audio recording
  */
 export interface IAudioRecorder {
-  startRecording(): Promise<void>;
+  startRecording(deviceId?: string): Promise<void>;
   stopRecording(): Promise<Blob>;
   getIsRecording(): boolean;
 }
@@ -18,15 +18,21 @@ export class AudioRecorder implements IAudioRecorder {
    * Starts audio recording from the user's microphone
    * @throws Error if microphone access fails
    */
-  async startRecording(): Promise<void> {
+  async startRecording(deviceId?: string): Promise<void> {
     try {
+      const audioConstraints: MediaTrackConstraints = {
+        sampleRate: 16000,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+      };
+
+      if (deviceId) {
+        audioConstraints.deviceId = { exact: deviceId };
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          sampleRate: 16000, // Whisper prefers 16kHz
-          channelCount: 1,   // Mono
-          echoCancellation: true,
-          noiseSuppression: true,
-        } 
+        audio: audioConstraints
       });
       
       this.stream = stream;
@@ -46,6 +52,9 @@ export class AudioRecorder implements IAudioRecorder {
       this.isRecording = true;
     } catch (error) {
       console.error('Error starting recording:', error);
+      if (error instanceof DOMException && error.name === 'OverconstrainedError') {
+        throw new Error('Selected recording device is unavailable. Please choose another microphone.');
+      }
       throw new Error('Failed to access microphone. Please check permissions.');
     }
   }

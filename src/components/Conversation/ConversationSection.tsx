@@ -59,6 +59,8 @@ export const ConversationSection: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [tooltipHeight, setTooltipHeight] = useState(0);
+  const [recordingDevices, setRecordingDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => localStorage.getItem('recordingDeviceId') || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -85,6 +87,7 @@ export const ConversationSection: React.FC = () => {
 
   useEffect(() => {
     loadConversation();
+    void loadRecordingDevices();
     
     const unsubscribeMessageAdded = window.electronAPI.onConversationMessageAdded((message: ConversationMessage) => {
       setMessages(prev => [...prev, message]);
@@ -116,6 +119,7 @@ export const ConversationSection: React.FC = () => {
     };
 
     window.addEventListener('toggle-recording', handleToggleRecording);
+    navigator.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
 
     return () => {
       unsubscribeMessageAdded();
@@ -123,11 +127,44 @@ export const ConversationSection: React.FC = () => {
       unsubscribeMessageUpdated();
       unsubscribeCleared();
       window.removeEventListener('toggle-recording', handleToggleRecording);
+      navigator.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
       }
     };
   }, []);
+
+  const handleDeviceChange = () => {
+    void loadRecordingDevices();
+  };
+
+  const loadRecordingDevices = async () => {
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        return;
+      }
+
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((device) => device.kind === 'audioinput');
+      setRecordingDevices(audioInputs);
+
+      if (selectedDeviceId && !audioInputs.some((device) => device.deviceId === selectedDeviceId)) {
+        setSelectedDeviceId('');
+        localStorage.removeItem('recordingDeviceId');
+      }
+    } catch (error) {
+      console.error('Failed to enumerate recording devices:', error);
+    }
+  };
+
+  const handleSelectRecordingDevice = (deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    if (deviceId) {
+      localStorage.setItem('recordingDeviceId', deviceId);
+    } else {
+      localStorage.removeItem('recordingDeviceId');
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -157,10 +194,13 @@ export const ConversationSection: React.FC = () => {
         audioRecorderRef.current = new AudioRecorder();
       }
       
-      await audioRecorderRef.current.startRecording();
+      await audioRecorderRef.current.startRecording(selectedDeviceId || undefined);
       setIsRecording(true);
       isRecordingRef.current = true;
       setRecordingDuration(0);
+
+      // Refresh labels after permission grant, if browser previously hid them.
+      void loadRecordingDevices();
       
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
@@ -305,6 +345,9 @@ export const ConversationSection: React.FC = () => {
         onStopRecording={handleStopRecording}
         onToggleSpeaker={handleToggleSpeaker}
         onClearConversation={handleClearConversation}
+        recordingDevices={recordingDevices}
+        selectedDeviceId={selectedDeviceId}
+        onSelectRecordingDevice={handleSelectRecordingDevice}
       />
 
       {/* Scrollable Conversation Area - Takes remaining space above AI suggestions */}
@@ -336,7 +379,7 @@ export const ConversationSection: React.FC = () => {
                           : 'bg-green-600/20 border border-green-500/30'
                       }`}
                     >
-                      <div className="text-xs text-white/60 mb-1">
+                      <div className="text-xs text-white/60 mb-1 whitespace-nowrap">
                         {message.speaker === 'interviewer' ? '👤 Interviewer' : '🎤 You'}
                       </div>
                       <div className="text-white text-[13px]">{message.text}</div>

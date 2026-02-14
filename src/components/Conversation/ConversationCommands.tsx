@@ -16,6 +16,9 @@ interface ConversationCommandsProps {
   onStopRecording: () => Promise<void>;
   onToggleSpeaker: () => Promise<void>;
   onClearConversation: () => Promise<void>;
+  recordingDevices: MediaDeviceInfo[];
+  selectedDeviceId: string;
+  onSelectRecordingDevice: (deviceId: string) => void;
 }
 
 export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
@@ -28,6 +31,9 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
   onStopRecording,
   onToggleSpeaker,
   onClearConversation,
+  recordingDevices,
+  selectedDeviceId,
+  onSelectRecordingDevice,
 }) => {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -87,14 +93,14 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
 
           {/* Toggle Speaker Mode */}
           <div
-            className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
             onClick={onToggleSpeaker}
             style={{ opacity: isRecording ? 0.5 : 1, pointerEvents: isRecording ? 'none' : 'auto' }}
           >
-            <span className="text-[11px] leading-none">
+            <span className="text-[11px] leading-none whitespace-nowrap">
               {currentSpeaker === 'interviewer' ? 'Interviewer' : 'You'}
             </span>
-            <div className="flex gap-1">
+            <div className="flex gap-1 shrink-0">
               <button className="bg-white/10 rounded-md px-1.5 py-1 text-[11px] leading-none text-white/70">
                 {COMMAND_KEY}
               </button>
@@ -113,6 +119,25 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
             onClick={onClearConversation}
           >
             <span className="text-[11px] leading-none">Clear</span>
+          </div>
+
+          {/* Recording Device */}
+          <div className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors">
+            <span className="text-[11px] leading-none text-white/80">Mic</span>
+            <select
+              value={selectedDeviceId}
+              onChange={(event) => onSelectRecordingDevice(event.target.value)}
+              disabled={isRecording}
+              className="bg-white/10 border border-white/10 rounded text-[11px] leading-none text-white px-2 py-1 max-w-[120px] disabled:opacity-50"
+              title={isRecording ? "Stop recording to change microphone" : "Select recording device"}
+            >
+              <option value="">Default microphone</option>
+              {recordingDevices.map((device, index) => (
+                <option key={device.deviceId || `mic-${index}`} value={device.deviceId}>
+                  {device.label || `Microphone ${index + 1}`}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Keyboard Shortcuts Tooltip Trigger */}
