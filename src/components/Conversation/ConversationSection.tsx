@@ -60,7 +60,12 @@ export const ConversationSection: React.FC = () => {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [tooltipHeight, setTooltipHeight] = useState(0);
   const [recordingDevices, setRecordingDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => localStorage.getItem('recordingDeviceId') || '');
+  const [intervieweeDeviceId, setIntervieweeDeviceId] = useState<string>(() => {
+    return localStorage.getItem('recordingDeviceId_interviewee') || localStorage.getItem('recordingDeviceId') || '';
+  });
+  const [interviewerDeviceId, setInterviewerDeviceId] = useState<string>(() => {
+    return localStorage.getItem('recordingDeviceId_interviewer') || '';
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -148,20 +153,37 @@ export const ConversationSection: React.FC = () => {
       const audioInputs = devices.filter((device) => device.kind === 'audioinput');
       setRecordingDevices(audioInputs);
 
-      if (selectedDeviceId && !audioInputs.some((device) => device.deviceId === selectedDeviceId)) {
-        setSelectedDeviceId('');
-        localStorage.removeItem('recordingDeviceId');
+      if (intervieweeDeviceId && !audioInputs.some((device) => device.deviceId === intervieweeDeviceId)) {
+        setIntervieweeDeviceId('');
+        localStorage.removeItem('recordingDeviceId_interviewee');
+      }
+      if (interviewerDeviceId && !audioInputs.some((device) => device.deviceId === interviewerDeviceId)) {
+        setInterviewerDeviceId('');
+        localStorage.removeItem('recordingDeviceId_interviewer');
       }
     } catch (error) {
       console.error('Failed to enumerate recording devices:', error);
     }
   };
 
-  const handleSelectRecordingDevice = (deviceId: string) => {
-    setSelectedDeviceId(deviceId);
+  const handleSelectRecordingDevice = (speaker: 'interviewer' | 'interviewee', deviceId: string) => {
+    if (speaker === 'interviewer') {
+      setInterviewerDeviceId(deviceId);
+      if (deviceId) {
+        localStorage.setItem('recordingDeviceId_interviewer', deviceId);
+      } else {
+        localStorage.removeItem('recordingDeviceId_interviewer');
+      }
+      return;
+    }
+
+    setIntervieweeDeviceId(deviceId);
     if (deviceId) {
+      localStorage.setItem('recordingDeviceId_interviewee', deviceId);
+      // Legacy key support for previous single-device behavior
       localStorage.setItem('recordingDeviceId', deviceId);
     } else {
+      localStorage.removeItem('recordingDeviceId_interviewee');
       localStorage.removeItem('recordingDeviceId');
     }
   };
@@ -194,7 +216,8 @@ export const ConversationSection: React.FC = () => {
         audioRecorderRef.current = new AudioRecorder();
       }
       
-      await audioRecorderRef.current.startRecording(selectedDeviceId || undefined);
+      const activeDeviceId = currentSpeaker === 'interviewer' ? interviewerDeviceId : intervieweeDeviceId;
+      await audioRecorderRef.current.startRecording(activeDeviceId || undefined);
       setIsRecording(true);
       isRecordingRef.current = true;
       setRecordingDuration(0);
@@ -346,7 +369,8 @@ export const ConversationSection: React.FC = () => {
         onToggleSpeaker={handleToggleSpeaker}
         onClearConversation={handleClearConversation}
         recordingDevices={recordingDevices}
-        selectedDeviceId={selectedDeviceId}
+        intervieweeDeviceId={intervieweeDeviceId}
+        interviewerDeviceId={interviewerDeviceId}
         onSelectRecordingDevice={handleSelectRecordingDevice}
       />
 

@@ -17,8 +17,9 @@ interface ConversationCommandsProps {
   onToggleSpeaker: () => Promise<void>;
   onClearConversation: () => Promise<void>;
   recordingDevices: MediaDeviceInfo[];
-  selectedDeviceId: string;
-  onSelectRecordingDevice: (deviceId: string) => void;
+  intervieweeDeviceId: string;
+  interviewerDeviceId: string;
+  onSelectRecordingDevice: (speaker: 'interviewer' | 'interviewee', deviceId: string) => void;
 }
 
 export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
@@ -32,7 +33,8 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
   onToggleSpeaker,
   onClearConversation,
   recordingDevices,
-  selectedDeviceId,
+  intervieweeDeviceId,
+  interviewerDeviceId,
   onSelectRecordingDevice,
 }) => {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
@@ -60,6 +62,9 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const activeDeviceId = currentSpeaker === 'interviewer' ? interviewerDeviceId : intervieweeDeviceId;
+  const activeMicLabel = currentSpeaker === 'interviewer' ? 'Int. Mic' : 'Your Mic';
 
   const handleToggleRecording = async () => {
     if (isRecording) {
@@ -97,7 +102,7 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
             onClick={onToggleSpeaker}
             style={{ opacity: isRecording ? 0.5 : 1, pointerEvents: isRecording ? 'none' : 'auto' }}
           >
-            <span className="text-[11px] leading-none whitespace-nowrap">
+            <span className="inline-flex w-[72px] justify-center text-[11px] leading-none whitespace-nowrap">
               {currentSpeaker === 'interviewer' ? 'Interviewer' : 'You'}
             </span>
             <div className="flex gap-1 shrink-0">
@@ -122,13 +127,13 @@ export const ConversationCommands: React.FC<ConversationCommandsProps> = ({
           </div>
 
           {/* Recording Device */}
-          <div className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors">
-            <span className="text-[11px] leading-none text-white/80">Mic</span>
+          <div className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/10 transition-colors shrink-0">
+            <span className="inline-flex w-[56px] justify-center text-[11px] leading-none text-white/80 whitespace-nowrap">{activeMicLabel}</span>
             <select
-              value={selectedDeviceId}
-              onChange={(event) => onSelectRecordingDevice(event.target.value)}
+              value={activeDeviceId}
+              onChange={(event) => onSelectRecordingDevice(currentSpeaker, event.target.value)}
               disabled={isRecording}
-              className="bg-white/10 border border-white/10 rounded text-[11px] leading-none text-white px-2 py-1 max-w-[120px] disabled:opacity-50"
+              className="w-[120px] bg-white/10 border border-white/10 rounded text-[11px] leading-none text-white px-2 py-1 disabled:opacity-50"
               title={isRecording ? "Stop recording to change microphone" : "Select recording device"}
             >
               <option value="">Default microphone</option>
