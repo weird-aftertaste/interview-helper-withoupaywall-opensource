@@ -33,7 +33,7 @@ export class ScreenshotHelper {
     );
     this.tempDir = path.join(
       app.getPath("temp"),
-      "wluely-screenshots"
+      "interview-coder-screenshots"
     );
 
     // Create directories if they don't exist

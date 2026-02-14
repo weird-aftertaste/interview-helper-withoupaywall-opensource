@@ -1,5 +1,5 @@
 {
-  "name": "wluely",
+  "name": "interview-coder-v1",
   "version": "1.0.19",
   "main": "./dist-electron/main.js",
   "scripts": {
@@ -16,7 +16,7 @@
   },
   "build": {
     "appId": "com.chunginlee.interviewcoder",
-    "productName": "wluely",
+    "productName": "Interview Coder",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -48,7 +48,7 @@
           ]
         }
       ],
-      "artifactName": "wluely-${arch}.${ext}",
+      "artifactName": "Interview-Coder-${arch}.${ext}",
       "icon": "assets/icons/mac/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -57,9 +57,9 @@
       "identity": "Developer ID Application",
       "notarize": true,
       "protocols": {
-        "name": "wluely-protocol",
+        "name": "interview-coder-protocol",
         "schemes": [
-          "wluely"
+          "interview-coder"
         ]
       }
     },
@@ -70,9 +70,9 @@
       "icon": "assets/icons/win/icon.ico",
       "artifactName": "${productName}-Windows-${version}.${ext}",
       "protocols": {
-        "name": "wluely-protocol",
+        "name": "interview-coder-protocol",
         "schemes": [
-          "wluely"
+          "interview-coder"
         ]
       }
     },
@@ -83,9 +83,9 @@
       "icon": "assets/icons/png/icon-256x256.png",
       "artifactName": "${productName}-Linux-${version}.${ext}",
       "protocols": {
-        "name": "wluely-protocol",
+        "name": "interview-coder-protocol",
         "schemes": [
-          "wluely"
+          "interview-coder"
         ]
       }
     },
@@ -93,7 +93,7 @@
       {
         "provider": "github",
         "owner": "ibttf",
-        "repo": "wluely",
+        "repo": "interview-coder",
         "private": false,
         "releaseType": "release"
       }
@@ -118,7 +118,7 @@
     "technical interview",
     "tool"
   ],
-  "author": "wluely Contributors",
+  "author": "Interview Coder Contributors",
   "license": "AGPL-3.0-or-later",
   "description": "An invisible desktop application to help you pass your technical interviews.",
   "dependencies": {
