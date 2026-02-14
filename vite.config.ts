@@ -51,6 +51,7 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: process.env.NODE_ENV === "development",
     minify: process.env.NODE_ENV === "production" ? "esbuild" : false,
+    chunkSizeWarningLimit: 3000,
     rollupOptions: {
       output: {
         manualChunks: {
