@@ -12,6 +12,33 @@ import * as dotenv from "dotenv"
 // Constants
 const isDev = process.env.NODE_ENV === "development"
 
+function configureAppStoragePaths(): void {
+  try {
+    const appDataPath = path.join(app.getPath("appData"), "interview-coder-v1")
+    const sessionPath = path.join(appDataPath, "session")
+    const tempPath = path.join(appDataPath, "temp")
+    const cachePath = path.join(appDataPath, "cache")
+
+    for (const dir of [appDataPath, sessionPath, tempPath, cachePath]) {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+    }
+
+    app.setPath("userData", appDataPath)
+    app.setPath("sessionData", sessionPath)
+    app.setPath("temp", tempPath)
+    app.setPath("cache", cachePath)
+
+    app.commandLine.appendSwitch("disk-cache-dir", cachePath)
+    app.commandLine.appendSwitch("disable-gpu-shader-disk-cache")
+  } catch (error) {
+    console.error("Failed to configure app storage paths:", error)
+  }
+}
+
+configureAppStoragePaths()
+
 // Application State
 const state = {
   // Window management properties
@@ -523,24 +550,8 @@ function loadEnvVariables() {
 // Initialize application
 async function initializeApp() {
   try {
-    // Set custom cache directory to prevent permission issues
-    const appDataPath = path.join(app.getPath('appData'), 'interview-coder-v1')
-    const sessionPath = path.join(appDataPath, 'session')
-    const tempPath = path.join(appDataPath, 'temp')
-    const cachePath = path.join(appDataPath, 'cache')
-    
-    // Create directories if they don't exist
-    for (const dir of [appDataPath, sessionPath, tempPath, cachePath]) {
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true })
-      }
-    }
-    
-    app.setPath('userData', appDataPath)
-    app.setPath('sessionData', sessionPath)      
-    app.setPath('temp', tempPath)
-    app.setPath('cache', cachePath)
-      
+    // Paths are configured at process startup in configureAppStoragePaths().
+
     loadEnvVariables()
     
     // Ensure a configuration file exists
