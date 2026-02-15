@@ -73,6 +73,9 @@ export const ConversationSection: React.FC = () => {
   
   // Use ref to track recording state for event listener
   const isRecordingRef = useRef(false);
+  const currentSpeakerRef = useRef<'interviewer' | 'interviewee'>('interviewee');
+  const intervieweeDeviceIdRef = useRef<string>('');
+  const interviewerDeviceIdRef = useRef<string>('');
   
   const handleTooltipVisibilityChange = (visible: boolean, height: number) => {
     setTooltipHeight(height);
@@ -91,6 +94,18 @@ export const ConversationSection: React.FC = () => {
   }, [isRecording]);
 
   useEffect(() => {
+    currentSpeakerRef.current = currentSpeaker;
+  }, [currentSpeaker]);
+
+  useEffect(() => {
+    intervieweeDeviceIdRef.current = intervieweeDeviceId;
+  }, [intervieweeDeviceId]);
+
+  useEffect(() => {
+    interviewerDeviceIdRef.current = interviewerDeviceId;
+  }, [interviewerDeviceId]);
+
+  useEffect(() => {
     loadConversation();
     void loadRecordingDevices();
     
@@ -100,7 +115,9 @@ export const ConversationSection: React.FC = () => {
     });
     
     const unsubscribeSpeakerChanged = window.electronAPI.onSpeakerChanged((speaker: string) => {
-      setCurrentSpeaker(speaker as 'interviewer' | 'interviewee');
+      const normalizedSpeaker = speaker as 'interviewer' | 'interviewee';
+      currentSpeakerRef.current = normalizedSpeaker;
+      setCurrentSpeaker(normalizedSpeaker);
     });
 
     const unsubscribeMessageUpdated = window.electronAPI.onConversationMessageUpdated((message: ConversationMessage) => {
@@ -216,7 +233,10 @@ export const ConversationSection: React.FC = () => {
         audioRecorderRef.current = new AudioRecorder();
       }
       
-      const activeDeviceId = currentSpeaker === 'interviewer' ? interviewerDeviceId : intervieweeDeviceId;
+      const activeSpeaker = currentSpeakerRef.current;
+      const activeDeviceId = activeSpeaker === 'interviewer'
+        ? interviewerDeviceIdRef.current
+        : intervieweeDeviceIdRef.current;
       await audioRecorderRef.current.startRecording(activeDeviceId || undefined);
       setIsRecording(true);
       isRecordingRef.current = true;
@@ -252,7 +272,7 @@ export const ConversationSection: React.FC = () => {
     
     try {
       const audioBlob = await audioRecorderRef.current.stopRecording();
-      const speakerAtStop = currentSpeaker;
+      const speakerAtStop = currentSpeakerRef.current;
       setRecordingDuration(0);
 
       // Kick off transcription/processing asynchronously so UI stays responsive
@@ -323,7 +343,9 @@ export const ConversationSection: React.FC = () => {
     try {
       const result = await window.electronAPI.toggleSpeaker();
       if (result.success) {
-        setCurrentSpeaker(result.speaker);
+        const nextSpeaker = result.speaker as 'interviewer' | 'interviewee';
+        currentSpeakerRef.current = nextSpeaker;
+        setCurrentSpeaker(nextSpeaker);
         // Don't clear suggestions - user needs to see them when preparing their answer!
       }
     } catch (error) {
@@ -335,7 +357,9 @@ export const ConversationSection: React.FC = () => {
     try {
       const result = await window.electronAPI.toggleSpeaker();
       if (result.success) {
-        setCurrentSpeaker(result.speaker);
+        const nextSpeaker = result.speaker as 'interviewer' | 'interviewee';
+        currentSpeakerRef.current = nextSpeaker;
+        setCurrentSpeaker(nextSpeaker);
       }
     } catch (error) {
       console.error('Failed to auto-toggle speaker:', error);
@@ -423,7 +447,7 @@ export const ConversationSection: React.FC = () => {
 
       {/* AI Suggestions - Fixed at bottom, always visible, never scrolls */}
       {aiSuggestions && (
-        <div className="flex-shrink-0 border-t border-white/10 pt-3 bg-black/60 -mx-4 -mb-4 px-4 pb-4">
+        <div className="mt-auto flex-shrink-0 border-t border-white/10 pt-3 bg-black/60 -mx-4 -mb-4 px-4 pb-4">
           <ContentSection
             title="🤖 AI Answer Suggestions"
             content={

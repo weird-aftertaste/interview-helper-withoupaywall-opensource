@@ -90,7 +90,7 @@ export class AnswerAssistant implements IAnswerAssistant {
       return customPrompt;
     }
 
-    return "You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate's background. Provide concise, actionable suggestions.";
+    return "You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate's background. Provide concise, actionable suggestions. Reply in the same language as the interviewer's latest question unless the user explicitly asks to switch languages.";
   }
 
   constructor() {

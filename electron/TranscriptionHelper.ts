@@ -190,7 +190,6 @@ export class TranscriptionHelper implements ITranscriptionHelper {
       const transcription = await this.openai.audio.transcriptions.create({
         file: file,
         model: speechModel,
-        language: 'en', // Optional: can be auto-detected
         response_format: 'verbose_json',
       });
 
@@ -244,7 +243,6 @@ export class TranscriptionHelper implements ITranscriptionHelper {
       const transcription = await this.groqOpenAI.audio.transcriptions.create({
         file,
         model: groqModel,
-        language: 'en',
         response_format: 'verbose_json',
       });
 
@@ -314,7 +312,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
           role: "user",
           parts: [
             {
-              text: "Please transcribe this audio to text. Return only the transcribed text without any additional commentary."
+              text: "Please transcribe this audio exactly as spoken. Keep the original language (do not translate). Return only the transcription text, with no extra commentary."
             },
             {
               inlineData: {
