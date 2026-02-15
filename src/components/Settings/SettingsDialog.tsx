@@ -43,6 +43,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [answerModel, setAnswerModel] = useState(
     DEFAULT_MODELS.openai.answerModel
   );
+  const [answerSystemPrompt, setAnswerSystemPrompt] = useState("");
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState("");
   const [openaiCustomModel, setOpenaiCustomModel] = useState("");
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>("openai");
@@ -84,6 +85,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         solutionModel?: string;
         debuggingModel?: string;
         answerModel?: string;
+        answerSystemPrompt?: string;
         openaiBaseUrl?: string;
         openaiCustomModel?: string;
         transcriptionProvider?: TranscriptionProvider;
@@ -112,6 +114,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           setAnswerModel(
             config.answerModel || providerDefaults.answerModel
           );
+          setAnswerSystemPrompt(config.answerSystemPrompt || "");
           setOpenaiBaseUrl(config.openaiBaseUrl || "");
           setOpenaiCustomModel(config.openaiCustomModel || "");
           setTranscriptionProvider(
@@ -187,6 +190,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         solutionModel,
         debuggingModel,
         answerModel,
+        answerSystemPrompt,
         openaiBaseUrl: normalizedOpenaiBaseUrl,
         openaiCustomModel: effectiveOpenaiCustomModel,
         transcriptionProvider,
@@ -541,6 +545,23 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 </div>
               );
             })}
+          </div>
+
+          <div className="space-y-2 mt-4">
+            <label className="text-sm font-medium text-white" htmlFor="answerSystemPrompt">
+              Answer Assistant System Prompt (optional)
+            </label>
+            <textarea
+              id="answerSystemPrompt"
+              value={answerSystemPrompt}
+              onChange={(e) => setAnswerSystemPrompt(e.target.value)}
+              placeholder="You are a helpful interview assistant..."
+              rows={6}
+              className="w-full rounded-md bg-black/50 border border-white/10 text-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-white/30"
+            />
+            <p className="text-xs text-white/50">
+              Overrides the system prompt used for AI answer suggestions in conversation mode.
+            </p>
           </div>
           
           {/* Speech Recognition Model Selection */}

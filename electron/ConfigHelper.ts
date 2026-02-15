@@ -26,6 +26,7 @@ interface Config {
   solutionModel: string;
   debuggingModel: string;
   answerModel: string;  // Model for AI answer suggestions in conversations
+  answerSystemPrompt?: string;
   transcriptionProvider: "openai" | "gemini" | "groq";
   speechRecognitionModel: string;  // Speech recognition model (Whisper for OpenAI)
   groqApiKey?: string;
@@ -46,6 +47,7 @@ export class ConfigHelper extends EventEmitter {
     solutionModel: DEFAULT_MODELS[DEFAULT_PROVIDER].solutionModel,
     debuggingModel: DEFAULT_MODELS[DEFAULT_PROVIDER].debuggingModel,
     answerModel: DEFAULT_MODELS[DEFAULT_PROVIDER].answerModel,
+    answerSystemPrompt: "",
     transcriptionProvider: DEFAULT_PROVIDER === "gemini" ? "gemini" : "openai",
     speechRecognitionModel:
       DEFAULT_MODELS.openai.speechRecognitionModel || "whisper-1",
@@ -139,6 +141,9 @@ export class ConfigHelper extends EventEmitter {
         }
         if (typeof config.openaiCustomModel === "string") {
           config.openaiCustomModel = config.openaiCustomModel.trim();
+        }
+        if (typeof config.answerSystemPrompt === "string") {
+          config.answerSystemPrompt = config.answerSystemPrompt.trim();
         }
 
         // Ensure transcriptionProvider is valid
@@ -270,6 +275,9 @@ export class ConfigHelper extends EventEmitter {
       if (typeof updates.groqWhisperModel === "string") {
         updates.groqWhisperModel = updates.groqWhisperModel.trim();
       }
+      if (typeof updates.answerSystemPrompt === "string") {
+        updates.answerSystemPrompt = updates.answerSystemPrompt.trim();
+      }
 
       // Validate transcription provider
       const transcriptionProvider =
@@ -354,6 +362,7 @@ export class ConfigHelper extends EventEmitter {
           updates.extractionModel !== undefined || updates.solutionModel !== undefined || 
           updates.debuggingModel !== undefined || updates.answerModel !== undefined ||
           updates.openaiBaseUrl !== undefined || updates.openaiCustomModel !== undefined ||
+          updates.answerSystemPrompt !== undefined ||
           updates.transcriptionProvider !== undefined || updates.groqApiKey !== undefined ||
           updates.groqWhisperModel !== undefined ||
           updates.speechRecognitionModel !== undefined || 

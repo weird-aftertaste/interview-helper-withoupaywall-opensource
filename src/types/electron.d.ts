@@ -54,8 +54,8 @@ export interface ElectronAPI {
   getPlatform: () => string
   
   // New methods for OpenAI integration
-  getConfig: () => Promise<{ apiKey: string; model: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; speechRecognitionModel?: string; transcriptionProvider?: "openai" | "gemini" | "groq"; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }>
-  updateConfig: (config: { apiKey?: string; model?: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; speechRecognitionModel?: string; transcriptionProvider?: "openai" | "gemini" | "groq"; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }) => Promise<boolean>
+  getConfig: () => Promise<{ apiKey: string; model: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; answerSystemPrompt?: string; speechRecognitionModel?: string; transcriptionProvider?: "openai" | "gemini" | "groq"; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }>
+  updateConfig: (config: { apiKey?: string; model?: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; answerSystemPrompt?: string; speechRecognitionModel?: string; transcriptionProvider?: "openai" | "gemini" | "groq"; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }) => Promise<boolean>
   checkApiKey: () => Promise<boolean>
   validateApiKey: (apiKey: string) => Promise<{ valid: boolean; error?: string }>
   openLink: (url: string) => void

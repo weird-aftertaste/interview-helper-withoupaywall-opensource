@@ -84,6 +84,15 @@ export class AnswerAssistant implements IAnswerAssistant {
     return !openaiBaseUrl?.trim();
   }
 
+  private resolveAnswerSystemPrompt(answerSystemPrompt?: string): string {
+    const customPrompt = answerSystemPrompt?.trim();
+    if (customPrompt) {
+      return customPrompt;
+    }
+
+    return "You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate's background. Provide concise, actionable suggestions.";
+  }
+
   constructor() {
     this.initializeAIClients();
     
@@ -159,7 +168,7 @@ export class AnswerAssistant implements IAnswerAssistant {
       profile
     );
 
-    const systemMessage = 'You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate\'s background. Provide concise, actionable suggestions.';
+    const systemMessage = this.resolveAnswerSystemPrompt(config.answerSystemPrompt);
 
     try {
       let suggestionsText = '';
