@@ -139,7 +139,11 @@ export class ConversationManager extends EventEmitter implements IConversationMa
    */
   public clearConversation(): void {
     this.messages = [];
+    const shouldEmitSpeakerChange = this.currentSpeaker !== 'interviewee';
     this.currentSpeaker = 'interviewee';
+    if (shouldEmitSpeakerChange) {
+      this.emit('speaker-changed', this.currentSpeaker);
+    }
     this.emit('conversation-cleared');
   }
 

@@ -36,6 +36,18 @@ interface Config {
   candidateProfile?: CandidateProfile;  // Candidate profile for personalized AI suggestions
 }
 
+interface ProviderErrorShape {
+  status?: number;
+  message?: string;
+}
+
+const asProviderError = (error: unknown): ProviderErrorShape => {
+  if (typeof error === "object" && error !== null) {
+    return error as ProviderErrorShape;
+  }
+  return {};
+};
+
 export class ConfigHelper extends EventEmitter {
   private configPath: string;
   private defaultConfig: Config = {
@@ -498,20 +510,21 @@ export class ConfigHelper extends EventEmitter {
       // Make a simple API call to test the key
       await openai.models.list();
       return { valid: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('OpenAI API key test failed:', error);
+      const providerError = asProviderError(error);
       
       // Determine the specific error type for better error messages
       let errorMessage = 'Unknown error validating OpenAI API key';
       
-      if (error.status === 401) {
+      if (providerError.status === 401) {
         errorMessage = 'Invalid API key. Please check your OpenAI key and try again.';
-      } else if (error.status === 429) {
+      } else if (providerError.status === 429) {
         errorMessage = 'Rate limit exceeded. Your OpenAI API key has reached its request limit or has insufficient quota.';
-      } else if (error.status === 500) {
+      } else if (providerError.status === 500) {
         errorMessage = 'OpenAI server error. Please try again later.';
-      } else if (error.message) {
-        errorMessage = `Error: ${error.message}`;
+      } else if (providerError.message) {
+        errorMessage = `Error: ${providerError.message}`;
       }
       
       return { valid: false, error: errorMessage };
@@ -531,12 +544,13 @@ export class ConfigHelper extends EventEmitter {
         return { valid: true };
       }
       return { valid: false, error: 'Invalid Gemini API key format.' };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Gemini API key test failed:', error);
+      const providerError = asProviderError(error);
       let errorMessage = 'Unknown error validating Gemini API key';
       
-      if (error.message) {
-        errorMessage = `Error: ${error.message}`;
+      if (providerError.message) {
+        errorMessage = `Error: ${providerError.message}`;
       }
       
       return { valid: false, error: errorMessage };
@@ -556,12 +570,13 @@ export class ConfigHelper extends EventEmitter {
         return { valid: true };
       }
       return { valid: false, error: 'Invalid Anthropic API key format.' };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Anthropic API key test failed:', error);
+      const providerError = asProviderError(error);
       let errorMessage = 'Unknown error validating Anthropic API key';
       
-      if (error.message) {
-        errorMessage = `Error: ${error.message}`;
+      if (providerError.message) {
+        errorMessage = `Error: ${providerError.message}`;
       }
       
       return { valid: false, error: errorMessage };

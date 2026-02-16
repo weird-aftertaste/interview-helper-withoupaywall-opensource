@@ -1,6 +1,7 @@
 // Debug.tsx
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import React, { useEffect, useRef, useState, lazy, Suspense } from "react"
+import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
 // Lazy load syntax highlighter to reduce initial bundle size
 const SyntaxHighlighter = lazy(() => 
   import("react-syntax-highlighter").then(module => ({ 
@@ -25,7 +26,7 @@ const CodeSection = ({
   currentLanguage: string
 }) => (
   <div className="space-y-2">
-    <h2 className="text-[13px] font-medium text-white tracking-wide"></h2>
+    <h2 className="text-[13px] font-medium text-white tracking-wide">{title}</h2>
     {isLoading ? (
       <div className="space-y-1.5">
         <div className="mt-4 flex">
@@ -40,16 +41,7 @@ const CodeSection = ({
           <SyntaxHighlighter
             showLineNumbers
             language={currentLanguage == "golang" ? "go" : currentLanguage}
-            style={(() => {
-              // Dynamically import style to reduce initial bundle size
-              // This will be code-split by Vite
-              try {
-                const styleModule = require("react-syntax-highlighter/dist/esm/styles/prism")
-                return styleModule.dracula || {}
-              } catch {
-                return {}
-              }
-            })()}
+            style={dracula}
           customStyle={{
             maxWidth: "100%",
             margin: 0,
@@ -91,6 +83,19 @@ interface DebugProps {
   setLanguage: (language: string) => void
 }
 
+interface DebugSolutionData {
+  code: string
+  debug_analysis: string
+  thoughts: string[]
+  time_complexity: string
+  space_complexity: string
+}
+
+interface DebugSection {
+  title: string
+  content: string[]
+}
+
 const Debug: React.FC<DebugProps> = ({
   isProcessing,
   setIsProcessing,
@@ -124,13 +129,7 @@ const Debug: React.FC<DebugProps> = ({
 
   useEffect(() => {
     // Try to get the new solution data from cache first
-    const newSolution = queryClient.getQueryData(["new_solution"]) as {
-      code: string
-      debug_analysis: string
-      thoughts: string[]
-      time_complexity: string
-      space_complexity: string
-    } | null
+    const newSolution = queryClient.getQueryData(["new_solution"]) as DebugSolutionData | null
 
     // If we have cached data, set all state variables to the cached data
     if (newSolution) {
@@ -164,7 +163,7 @@ const Debug: React.FC<DebugProps> = ({
     const cleanupFunctions = [
       window.electronAPI.onScreenshotTaken(() => refetch()),
       window.electronAPI.onResetView(() => refetch()),
-      window.electronAPI.onDebugSuccess((data) => {
+      window.electronAPI.onDebugSuccess((data: DebugSolutionData) => {
         console.log("Debug success event received with data:", data);
         queryClient.setQueryData(["new_solution"], data);
         
@@ -183,9 +182,9 @@ const Debug: React.FC<DebugProps> = ({
           } else if (data.debug_analysis.includes('\n')) {
             // Try to find bullet points or numbered lists
             const lines = data.debug_analysis.split('\n');
-            const bulletPoints = lines.filter(line => 
-              line.trim().match(/^[\d*\-•]+\s/) || 
-              line.trim().match(/^[A-Z][\d\.\)\:]/) ||
+            const bulletPoints = lines.filter((line: string) => 
+              line.trim().match(/^[\d*-•]+\s/) || 
+              line.trim().match(/^[A-Z][\d.):]/) ||
               line.includes(':') && line.length < 100
             );
             
@@ -348,14 +347,13 @@ const Debug: React.FC<DebugProps> = ({
                   {/* Process the debug analysis text by sections and lines */}
                   {(() => {
                     // First identify key sections based on common patterns in the debug output
-                    const sections = [];
-                    let currentSection = { title: '', content: [] };
+                    const sections: DebugSection[] = [];
                     
                     // Split by possible section headers (### or ##)
                     const mainSections = debugAnalysis.split(/(?=^#{1,3}\s|^\*\*\*|^\s*[A-Z][\w\s]+\s*$)/m);
                     
                     // Filter out empty sections and process each one
-                    mainSections.filter(Boolean).forEach(sectionText => {
+                    mainSections.filter(Boolean).forEach((sectionText: string) => {
                       // First line might be a header
                       const lines = sectionText.split('\n');
                       let title = '';
@@ -385,21 +383,18 @@ const Debug: React.FC<DebugProps> = ({
                           </div>
                         )}
                         <div className="pl-1">
-                          {section.content.map((line, lineIndex) => {
+                          {section.content.map((line: string, lineIndex: number) => {
                             // Handle code blocks - detect full code blocks
                             if (line.trim().startsWith('```')) {
                               // If we find the start of a code block, collect all lines until the end
                               if (line.trim() === '```' || line.trim().startsWith('```')) {
                                 // Find end of this code block
-                                const codeBlockEndIndex = section.content.findIndex(
-                                  (l, i) => i > lineIndex && l.trim() === '```'
-                                );
+                                  const codeBlockEndIndex = section.content.findIndex(
+                                    (l: string, i: number) => i > lineIndex && l.trim() === '```'
+                                  );
                                 
                                 if (codeBlockEndIndex > lineIndex) {
                                   // Extract language if specified
-                                  const langMatch = line.trim().match(/```(\w+)/);
-                                  const language = langMatch ? langMatch[1] : '';
-                                  
                                   // Get the code content
                                   const codeContent = section.content
                                     .slice(lineIndex + 1, codeBlockEndIndex)
@@ -418,12 +413,12 @@ const Debug: React.FC<DebugProps> = ({
                             }
                             
                             // Handle bullet points
-                            if (line.trim().match(/^[\-*•]\s/) || line.trim().match(/^\d+\.\s/)) {
+                            if (line.trim().match(/^[-*•]\s/) || line.trim().match(/^\d+\.\s/)) {
                               return (
                                 <div key={lineIndex} className="flex items-start gap-2 my-1.5">
                                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400/80 mt-2 shrink-0" />
                                   <div className="flex-1">
-                                    {line.replace(/^[\-*•]\s|^\d+\.\s/, '')}
+                                    {line.replace(/^[-*•]\s|^\d+\.\s/, '')}
                                   </div>
                                 </div>
                               );
@@ -434,7 +429,7 @@ const Debug: React.FC<DebugProps> = ({
                               const parts = line.split(/(`[^`]+`)/g);
                               return (
                                 <div key={lineIndex} className="my-1.5">
-                                  {parts.map((part, partIndex) => {
+                                  {parts.map((part: string, partIndex: number) => {
                                     if (part.startsWith('`') && part.endsWith('`')) {
                                       return <span key={partIndex} className="font-mono bg-black/30 px-1 py-0.5 rounded">{part.slice(1, -1)}</span>;
                                     }

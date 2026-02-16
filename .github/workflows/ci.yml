@@ -26,7 +26,7 @@ jobs:
         cache: 'npm'
       
     - name: Install dependencies
-      run: npm i
+      run: npm ci
 
     - name: Clearing previous builds
       run: npm run clean
@@ -36,8 +36,7 @@ jobs:
       continue-on-error: true
 
     - name: Type Check
-      run: npx tsc --noEmit
-      continue-on-error: true
+      run: npm run typecheck
 
     - name: Build
       run: npm run build

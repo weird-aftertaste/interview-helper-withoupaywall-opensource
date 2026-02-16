@@ -9,7 +9,6 @@ import * as axios from 'axios';
 import { configHelper, CandidateProfile } from './ConfigHelper';
 import { IConversationManager } from './ConversationManager';
 import {
-  APIProvider,
   DEFAULT_ANSWER_MODELS,
 } from "../shared/aiModels";
 
@@ -32,6 +31,26 @@ interface GeminiResponse {
   }>;
 }
 
+interface ProviderErrorShape {
+  status?: number;
+  message?: string;
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        message?: string;
+      };
+    };
+  };
+}
+
+const asProviderError = (error: unknown): ProviderErrorShape => {
+  if (typeof error === "object" && error !== null) {
+    return error as ProviderErrorShape;
+  }
+  return {};
+};
+
 export interface AnswerSuggestion {
   suggestions: string[];
   reasoning: string;
@@ -50,14 +69,15 @@ export class AnswerAssistant implements IAnswerAssistant {
   private geminiApiKey: string | null = null;
   private anthropic: Anthropic | null = null;
 
-  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: unknown, context: string): string {
+    const providerError = asProviderError(error);
     const status =
-      typeof error?.status === "number"
-        ? error.status
-        : typeof error?.response?.status === "number"
-          ? error.response.status
+      typeof providerError.status === "number"
+        ? providerError.status
+        : typeof providerError.response?.status === "number"
+          ? providerError.response.status
           : undefined;
-    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
+    const message = providerError.message || providerError.response?.data?.error?.message || "Unknown error";
     const statusPart = status ? ` (status ${status})` : "";
     return `[${provider}] ${context} failed${statusPart}: ${message}`;
   }
@@ -252,11 +272,12 @@ export class AnswerAssistant implements IAnswerAssistant {
           : ['Consider answering based on your experience and background.'],
         reasoning: 'Based on conversation history and previous answers',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating suggestions:', error);
+      const providerError = asProviderError(error);
       
       // Provide specific error messages based on provider
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError(config.apiProvider, error, "Auth"));
       } else if (status === 429) {

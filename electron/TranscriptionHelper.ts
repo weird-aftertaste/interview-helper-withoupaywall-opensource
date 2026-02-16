@@ -20,6 +20,26 @@ export interface ITranscriptionHelper {
   transcribeAudio(audioBuffer: Buffer, mimeType?: string): Promise<TranscriptionResult>;
 }
 
+interface ProviderErrorShape {
+  status?: number;
+  message?: string;
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        message?: string;
+      };
+    };
+  };
+}
+
+const asProviderError = (error: unknown): ProviderErrorShape => {
+  if (typeof error === "object" && error !== null) {
+    return error as ProviderErrorShape;
+  }
+  return {};
+};
+
 export class TranscriptionHelper implements ITranscriptionHelper {
   private openai: OpenAI | null = null;
   private groqOpenAI: OpenAI | null = null;
@@ -31,7 +51,6 @@ export class TranscriptionHelper implements ITranscriptionHelper {
   private readonly defaultOpenAIModel: string = 'whisper-1';
   private readonly defaultGeminiModel: string = 'gemini-3-flash-preview'; // Gemini model with audio understanding support
   private readonly defaultGroqModel: string = 'whisper-large-v3-turbo';
-  private readonly defaultAnthropicModel: string = ''; // To be set when Anthropic speech recognition is available
 
   constructor() {
     this.tempDir = path.join(app.getPath('temp'), 'audio-transcriptions');
@@ -95,14 +114,15 @@ export class TranscriptionHelper implements ITranscriptionHelper {
     return provider === "openai" || provider === "gemini" || provider === "groq";
   }
 
-  private formatProviderError(provider: "openai" | "gemini" | "anthropic" | "groq", error: any, context: string): string {
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic" | "groq", error: unknown, context: string): string {
+    const providerError = asProviderError(error);
     const status =
-      typeof error?.status === "number"
-        ? error.status
-        : typeof error?.response?.status === "number"
-          ? error.response.status
+      typeof providerError.status === "number"
+        ? providerError.status
+        : typeof providerError.response?.status === "number"
+          ? providerError.response.status
           : undefined;
-    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
+    const message = providerError.message || providerError.response?.data?.error?.message || "Unknown error";
     const statusPart = status ? ` (status ${status})` : "";
     return `[${provider}] ${context} failed${statusPart}: ${message}`;
   }
@@ -145,11 +165,11 @@ export class TranscriptionHelper implements ITranscriptionHelper {
 
     // Route to the appropriate provider's transcription method
     if (transcriptionProvider === "openai") {
-      return this.transcribeWithOpenAI(audioBuffer, mimeType);
+      return this.transcribeWithOpenAI(audioBuffer);
     } else if (transcriptionProvider === "gemini") {
       return this.transcribeWithGemini(audioBuffer, mimeType);
     } else if (transcriptionProvider === "groq") {
-      return this.transcribeWithGroq(audioBuffer, mimeType);
+      return this.transcribeWithGroq(audioBuffer);
     } else {
       throw new Error(`Unsupported transcription provider: ${transcriptionProvider}`);
     }
@@ -159,8 +179,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Transcribes audio using OpenAI Whisper API
    */
   private async transcribeWithOpenAI(
-    audioBuffer: Buffer,
-    mimeType: string
+    audioBuffer: Buffer
   ): Promise<TranscriptionResult> {
     if (!this.openai) {
       throw new Error('OpenAI client not initialized. Please set OpenAI API key in settings.');
@@ -200,19 +219,20 @@ export class TranscriptionHelper implements ITranscriptionHelper {
         text: transcription.text,
         language: transcription.language,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Clean up on error
       this.cleanupTempFile(tempPath);
       
       console.error('OpenAI transcription error:', error);
+      const providerError = asProviderError(error);
       
       // Provide more specific error messages
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError("openai", error, "Auth"));
       } else if (status === 429) {
         throw new Error(this.formatProviderError("openai", error, "Rate limit"));
-      } else if (error.message?.includes('file')) {
+      } else if (providerError.message?.includes('file')) {
         throw new Error(this.formatProviderError("openai", error, "Invalid audio file"));
       }
 
@@ -224,8 +244,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Transcribes audio using Groq Whisper through OpenAI-compatible endpoint
    */
   private async transcribeWithGroq(
-    audioBuffer: Buffer,
-    mimeType: string
+    audioBuffer: Buffer
   ): Promise<TranscriptionResult> {
     if (!this.groqOpenAI) {
       throw new Error('Groq client not initialized. Please set Groq API key in settings.');
@@ -252,11 +271,12 @@ export class TranscriptionHelper implements ITranscriptionHelper {
         text: transcription.text,
         language: transcription.language,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.cleanupTempFile(tempPath);
       console.error('Groq transcription error:', error);
+      const providerError = asProviderError(error);
 
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError("groq", error, "Auth"));
       } else if (status === 429) {
@@ -353,11 +373,12 @@ export class TranscriptionHelper implements ITranscriptionHelper {
         text: transcriptionText.trim(),
         language: language || undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Gemini transcription error:', error);
+      const providerError = asProviderError(error);
       
       // Provide more specific error messages
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError("gemini", error, "Auth"));
       } else if (status === 429) {
@@ -374,10 +395,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Transcribes audio using Anthropic API (Future implementation)
    * TODO: Implement when Anthropic speech recognition becomes available
    */
-  private async transcribeWithAnthropic(
-    audioBuffer: Buffer,
-    mimeType: string
-  ): Promise<TranscriptionResult> {
+  private async transcribeWithAnthropic(): Promise<TranscriptionResult> {
     if (!this.anthropic) {
       throw new Error('Anthropic client not initialized. Please set Anthropic API key in settings.');
     }

@@ -22,6 +22,24 @@ interface AISuggestion {
   reasoning: string;
 }
 
+interface ProblemStatementCache {
+  problem_statement?: string;
+  constraints?: string;
+  example_input?: string;
+  example_output?: string;
+}
+
+interface AppConfig {
+  candidateProfile?: unknown;
+}
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+};
+
 // Reuse the same ContentSection style from Solutions.tsx for consistency
 const ContentSection = ({
   title,
@@ -68,7 +86,7 @@ export const ConversationSection: React.FC = () => {
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRecorderRef = useRef<AudioRecorder | null>(null);
-  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const processingCountRef = useRef(0);
   
   // Use ref to track recording state for event listener
@@ -249,9 +267,9 @@ export const ConversationSection: React.FC = () => {
       durationIntervalRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to start recording:', error);
-      alert(error.message || 'Failed to start recording. Please check microphone permissions.');
+      alert(getErrorMessage(error, 'Failed to start recording. Please check microphone permissions.'));
     }
   };
 
@@ -280,9 +298,9 @@ export const ConversationSection: React.FC = () => {
 
       // Auto-toggle speaker for the next recording cycle
       void toggleSpeakerForNextTurn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to stop recording:', error);
-      alert(error.message || 'Failed to stop recording');
+      alert(getErrorMessage(error, 'Failed to stop recording'));
     }
   };
 
@@ -302,9 +320,9 @@ export const ConversationSection: React.FC = () => {
           await fetchAISuggestions(text);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to process recording:', error);
-      alert(error.message || 'Failed to process recording');
+      alert(getErrorMessage(error, 'Failed to process recording'));
     } finally {
       updateProcessingStatus(-1);
     }
@@ -318,7 +336,7 @@ export const ConversationSection: React.FC = () => {
   const fetchAISuggestions = async (question: string) => {
     try {
       // Get problem statement from query cache if available (from screenshots)
-      const problemStatement = queryClient.getQueryData(['problem_statement']) as any;
+      const problemStatement = queryClient.getQueryData(['problem_statement']) as ProblemStatementCache | null;
       let screenshotContext: string | undefined;
       
       if (problemStatement?.problem_statement) {
@@ -326,14 +344,14 @@ export const ConversationSection: React.FC = () => {
       }
       
       // Get candidate profile from config
-      const config = await window.electronAPI.getConfig();
-      const candidateProfile = (config as any).candidateProfile;
+      const config = await window.electronAPI.getConfig() as AppConfig;
+      const candidateProfile = config.candidateProfile;
       
       const result = await window.electronAPI.getAnswerSuggestions(question, screenshotContext, candidateProfile);
       if (result.success && result.suggestions) {
         setAiSuggestions(result.suggestions);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to get AI suggestions:', error);
       // Don't show alert for suggestion errors - it's not critical
     }
@@ -371,12 +389,6 @@ export const ConversationSection: React.FC = () => {
       hour: '2-digit', 
       minute: '2-digit' 
     });
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (

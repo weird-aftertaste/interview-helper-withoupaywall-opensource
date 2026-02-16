@@ -1,10 +1,47 @@
 console.log("Preload script starting...")
-import { contextBridge, ipcRenderer } from "electron"
-const { shell } = require("electron")
+import { contextBridge, ipcRenderer, shell, type IpcRendererEvent } from "electron"
+import type { CandidateProfile } from "./ConfigHelper"
+import type { ConversationMessage } from "./ConversationManager"
+
+type ProcessingPayload = {
+  problem_statement?: string
+  constraints?: string
+  example_input?: string
+  example_output?: string
+  code?: string
+  thoughts?: string[]
+  time_complexity?: string
+  space_complexity?: string
+  debug_analysis?: string
+} & Record<string, unknown>
+
+type UpdateInfoPayload = Record<string, unknown>
+
+type ConfigUpdatePayload = {
+  apiKey?: string
+  model?: string
+  language?: string
+  opacity?: number
+  apiProvider?: "openai" | "gemini" | "anthropic"
+  extractionModel?: string
+  solutionModel?: string
+  debuggingModel?: string
+  answerModel?: string
+  answerSystemPrompt?: string
+  speechRecognitionModel?: string
+  transcriptionProvider?: "openai" | "gemini" | "groq"
+  openaiBaseUrl?: string
+  openaiCustomModel?: string
+  groqApiKey?: string
+  groqWhisperModel?: string
+  candidateProfile?: CandidateProfile
+}
+
+type IpcListenerCallback = (...args: unknown[]) => void
 
 export const PROCESSING_EVENTS = {
   //global states
-  UNAUTHORIZED: "procesing-unauthorized",
+  UNAUTHORIZED: "processing-unauthorized",
   NO_SCREENSHOTS: "processing-no-screenshots",
   OUT_OF_CREDITS: "out-of-credits",
   API_KEY_INVALID: "api-key-invalid",
@@ -52,7 +89,7 @@ const electronAPI = {
   onScreenshotTaken: (
     callback: (data: { path: string; preview: string }) => void
   ) => {
-    const subscription = (_: any, data: { path: string; preview: string }) =>
+    const subscription = (_event: IpcRendererEvent, data: { path: string; preview: string }) =>
       callback(data)
     ipcRenderer.on("screenshot-taken", subscription)
     return () => {
@@ -80,23 +117,23 @@ const electronAPI = {
       ipcRenderer.removeListener(PROCESSING_EVENTS.DEBUG_START, subscription)
     }
   },
-  onDebugSuccess: (callback: (data: any) => void) => {
-    ipcRenderer.on("debug-success", (_event, data) => callback(data))
+  onDebugSuccess: (callback: (data: ProcessingPayload) => void) => {
+    const subscription = (_event: IpcRendererEvent, data: ProcessingPayload) =>
+      callback(data)
+    ipcRenderer.on("debug-success", subscription)
     return () => {
-      ipcRenderer.removeListener("debug-success", (_event, data) =>
-        callback(data)
-      )
+      ipcRenderer.removeListener("debug-success", subscription)
     }
   },
   onDebugError: (callback: (error: string) => void) => {
-    const subscription = (_: any, error: string) => callback(error)
+    const subscription = (_event: IpcRendererEvent, error: string) => callback(error)
     ipcRenderer.on(PROCESSING_EVENTS.DEBUG_ERROR, subscription)
     return () => {
       ipcRenderer.removeListener(PROCESSING_EVENTS.DEBUG_ERROR, subscription)
     }
   },
   onSolutionError: (callback: (error: string) => void) => {
-    const subscription = (_: any, error: string) => callback(error)
+    const subscription = (_event: IpcRendererEvent, error: string) => callback(error)
     ipcRenderer.on(PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR, subscription)
     return () => {
       ipcRenderer.removeListener(
@@ -119,8 +156,8 @@ const electronAPI = {
       ipcRenderer.removeListener(PROCESSING_EVENTS.OUT_OF_CREDITS, subscription)
     }
   },
-  onProblemExtracted: (callback: (data: any) => void) => {
-    const subscription = (_: any, data: any) => callback(data)
+  onProblemExtracted: (callback: (data: ProcessingPayload) => void) => {
+    const subscription = (_event: IpcRendererEvent, data: ProcessingPayload) => callback(data)
     ipcRenderer.on(PROCESSING_EVENTS.PROBLEM_EXTRACTED, subscription)
     return () => {
       ipcRenderer.removeListener(
@@ -129,8 +166,8 @@ const electronAPI = {
       )
     }
   },
-  onSolutionSuccess: (callback: (data: any) => void) => {
-    const subscription = (_: any, data: any) => callback(data)
+  onSolutionSuccess: (callback: (data: ProcessingPayload) => void) => {
+    const subscription = (_event: IpcRendererEvent, data: ProcessingPayload) => callback(data)
     ipcRenderer.on(PROCESSING_EVENTS.SOLUTION_SUCCESS, subscription)
     return () => {
       ipcRenderer.removeListener(
@@ -179,15 +216,15 @@ const electronAPI = {
   },
   startUpdate: () => ipcRenderer.invoke("start-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
-  onUpdateAvailable: (callback: (info: any) => void) => {
-    const subscription = (_: any, info: any) => callback(info)
+  onUpdateAvailable: (callback: (info: UpdateInfoPayload) => void) => {
+    const subscription = (_event: IpcRendererEvent, info: UpdateInfoPayload) => callback(info)
     ipcRenderer.on("update-available", subscription)
     return () => {
       ipcRenderer.removeListener("update-available", subscription)
     }
   },
-  onUpdateDownloaded: (callback: (info: any) => void) => {
-    const subscription = (_: any, info: any) => callback(info)
+  onUpdateDownloaded: (callback: (info: UpdateInfoPayload) => void) => {
+    const subscription = (_event: IpcRendererEvent, info: UpdateInfoPayload) => callback(info)
     ipcRenderer.on("update-downloaded", subscription)
     return () => {
       ipcRenderer.removeListener("update-downloaded", subscription)
@@ -195,7 +232,7 @@ const electronAPI = {
   },
   decrementCredits: () => ipcRenderer.invoke("decrement-credits"),
   onCreditsUpdated: (callback: (credits: number) => void) => {
-    const subscription = (_event: any, credits: number) => callback(credits)
+    const subscription = (_event: IpcRendererEvent, credits: number) => callback(credits)
     ipcRenderer.on("credits-updated", subscription)
     return () => {
       ipcRenderer.removeListener("credits-updated", subscription)
@@ -205,7 +242,7 @@ const electronAPI = {
   
   // New methods for OpenAI API integration
   getConfig: () => ipcRenderer.invoke("get-config"),
-  updateConfig: (config: { apiKey?: string; model?: string; language?: string; opacity?: number; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; answerSystemPrompt?: string; speechRecognitionModel?: string; transcriptionProvider?: string; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }) => 
+  updateConfig: (config: ConfigUpdatePayload) => 
     ipcRenderer.invoke("update-config", config),
   onShowSettings: (callback: () => void) => {
     const subscription = () => callback()
@@ -218,7 +255,7 @@ const electronAPI = {
   validateApiKey: (apiKey: string) => 
     ipcRenderer.invoke("validate-api-key", apiKey),
   openExternal: (url: string) => 
-    ipcRenderer.invoke("openExternal", url),
+    shell.openExternal(url),
   onApiKeyInvalid: (callback: () => void) => {
     const subscription = () => callback()
     ipcRenderer.on(PROCESSING_EVENTS.API_KEY_INVALID, subscription)
@@ -226,7 +263,7 @@ const electronAPI = {
       ipcRenderer.removeListener(PROCESSING_EVENTS.API_KEY_INVALID, subscription)
     }
   },
-  removeListener: (eventName: string, callback: (...args: any[]) => void) => {
+  removeListener: (eventName: string, callback: IpcListenerCallback) => {
     ipcRenderer.removeListener(eventName, callback)
   },
   onDeleteLastScreenshot: (callback: () => void) => {
@@ -256,12 +293,12 @@ const electronAPI = {
     ipcRenderer.invoke("update-conversation-message", messageId, newText),
   
   // AI suggestions
-  getAnswerSuggestions: (question: string, screenshotContext?: string, candidateProfile?: any) =>
+  getAnswerSuggestions: (question: string, screenshotContext?: string, candidateProfile?: CandidateProfile) =>
     ipcRenderer.invoke("get-answer-suggestions", question, screenshotContext, candidateProfile),
   
   // Event listeners
-  onConversationMessageAdded: (callback: (message: any) => void) => {
-    const subscription = (_: any, message: any) => callback(message)
+  onConversationMessageAdded: (callback: (message: ConversationMessage) => void) => {
+    const subscription = (_event: IpcRendererEvent, message: ConversationMessage) => callback(message)
     ipcRenderer.on("conversation-message-added", subscription)
     return () => {
       ipcRenderer.removeListener("conversation-message-added", subscription)
@@ -269,15 +306,15 @@ const electronAPI = {
   },
   
   onSpeakerChanged: (callback: (speaker: string) => void) => {
-    const subscription = (_: any, speaker: string) => callback(speaker)
+    const subscription = (_event: IpcRendererEvent, speaker: string) => callback(speaker)
     ipcRenderer.on("speaker-changed", subscription)
     return () => {
       ipcRenderer.removeListener("speaker-changed", subscription)
     }
   },
   
-  onConversationMessageUpdated: (callback: (message: any) => void) => {
-    const subscription = (_: any, message: any) => callback(message)
+  onConversationMessageUpdated: (callback: (message: ConversationMessage) => void) => {
+    const subscription = (_event: IpcRendererEvent, message: ConversationMessage) => callback(message)
     ipcRenderer.on("conversation-message-updated", subscription)
     return () => {
       ipcRenderer.removeListener("conversation-message-updated", subscription)

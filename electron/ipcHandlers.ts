@@ -1,9 +1,23 @@
 // ipcHandlers.ts
 
-import { ipcMain, shell, dialog } from "electron"
-import { randomBytes } from "crypto"
+import { ipcMain, shell } from "electron"
 import { IIpcHandlerDeps } from "./main"
-import { configHelper } from "./ConfigHelper"
+import { configHelper, type CandidateProfile } from "./ConfigHelper"
+import type { ConversationMessage } from "./ConversationManager"
+
+type ConversationSpeaker = ConversationMessage["speaker"]
+
+const isConversationSpeaker = (
+  speaker: string | undefined
+): speaker is ConversationSpeaker =>
+  speaker === "interviewer" || speaker === "interviewee"
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return fallback
+}
 
 export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   console.log("Initializing IPC handlers")
@@ -190,12 +204,7 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
 
   // Auth-related handlers removed
 
-  ipcMain.handle("open-external-url", (event, url: string) => {
-    shell.openExternal(url)
-  })
-  
-  // Open external URL handler
-  ipcMain.handle("openLink", (event, url: string) => {
+  const openExternalUrl = (url: string) => {
     try {
       console.log(`Opening external URL: ${url}`);
       shell.openExternal(url);
@@ -204,7 +213,15 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       console.error(`Error opening URL ${url}:`, error);
       return { success: false, error: `Failed to open URL: ${error}` };
     }
-  })
+  }
+
+  ipcMain.handle("open-external-url", (_event, url: string) =>
+    openExternalUrl(url)
+  )
+
+  // Open external URL handlers (aliases kept for compatibility)
+  ipcMain.handle("openLink", (_event, url: string) => openExternalUrl(url))
+  ipcMain.handle("openExternal", (_event, url: string) => openExternalUrl(url))
 
   // Settings portal handler
   ipcMain.handle("open-settings-portal", () => {
@@ -369,9 +386,9 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       const buffer = Buffer.from(audioBuffer);
       const result = await deps.transcriptionHelper.transcribeAudio(buffer, mimeType);
       return { success: true, result };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Transcription error:", error);
-      return { success: false, error: error.message || "Transcription failed" };
+      return { success: false, error: getErrorMessage(error, "Transcription failed") };
     }
   })
 
@@ -382,11 +399,14 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
         return { success: false, error: "Conversation manager not initialized" };
       }
 
-      const message = deps.conversationManager.addMessage(text, speaker as any);
+      const normalizedSpeaker = isConversationSpeaker(speaker)
+        ? speaker
+        : undefined
+      const message = deps.conversationManager.addMessage(text, normalizedSpeaker);
       return { success: true, message };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error adding message:", error);
-      return { success: false, error: error.message || "Failed to add message" };
+      return { success: false, error: getErrorMessage(error, "Failed to add message") };
     }
   })
 
@@ -398,9 +418,9 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
 
       const speaker = deps.conversationManager.toggleSpeaker();
       return { success: true, speaker };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error toggling speaker:", error);
-      return { success: false, error: error.message || "Failed to toggle speaker" };
+      return { success: false, error: getErrorMessage(error, "Failed to toggle speaker") };
     }
   })
 
@@ -412,9 +432,9 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
 
       const messages = deps.conversationManager.getMessages();
       return { success: true, messages };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error getting conversation:", error);
-      return { success: false, error: error.message || "Failed to get conversation", messages: [] };
+      return { success: false, error: getErrorMessage(error, "Failed to get conversation"), messages: [] };
     }
   })
 
@@ -426,9 +446,9 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
 
       deps.conversationManager.clearConversation();
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error clearing conversation:", error);
-      return { success: false, error: error.message || "Failed to clear conversation" };
+      return { success: false, error: getErrorMessage(error, "Failed to clear conversation") };
     }
   })
 
@@ -440,14 +460,14 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
 
       const success = deps.conversationManager.updateMessage(messageId, newText);
       return { success };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error updating message:", error);
-      return { success: false, error: error.message || "Failed to update message" };
+      return { success: false, error: getErrorMessage(error, "Failed to update message") };
     }
   })
 
   // AI suggestion handler
-  ipcMain.handle("get-answer-suggestions", async (_event, question: string, screenshotContext?: string, candidateProfile?: any) => {
+  ipcMain.handle("get-answer-suggestions", async (_event, question: string, screenshotContext?: string, candidateProfile?: CandidateProfile) => {
     try {
       if (!deps.answerAssistant || !deps.conversationManager) {
         return { success: false, error: "Answer assistant or conversation manager not initialized" };
@@ -460,9 +480,9 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
         candidateProfile
       );
       return { success: true, suggestions };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error generating suggestions:", error);
-      return { success: false, error: error.message || "Failed to generate suggestions" };
+      return { success: false, error: getErrorMessage(error, "Failed to generate suggestions") };
     }
   })
 

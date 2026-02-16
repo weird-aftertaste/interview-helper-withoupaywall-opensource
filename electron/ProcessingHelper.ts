@@ -1,52 +1,42 @@
 // ProcessingHelper.ts
 import fs from "node:fs"
-import path from "node:path"
 import { ScreenshotHelper } from "./ScreenshotHelper"
 import { IProcessingHelperDeps } from "./main"
 import * as axios from "axios"
-import { app, BrowserWindow, dialog } from "electron"
+import { BrowserWindow } from "electron"
 import { OpenAI } from "openai"
 import { configHelper } from "./ConfigHelper"
 import Anthropic from '@anthropic-ai/sdk';
 import {
   APIProvider,
-  DEFAULT_MODELS,
 } from "../shared/aiModels";
+import {
+  asProviderError,
+  formatProviderError as formatProviderErrorText,
+  getErrorMessage,
+} from "./processing/errors"
+import {
+  buildDebugPrompt,
+  buildExtractionPrompt,
+  buildSolutionPrompt,
+} from "./processing/promptBuilders"
+import {
+  buildDebugResponse,
+  parseProblemInfoResponse,
+} from "./processing/responseParsers"
+import {
+  buildOpenAIClient,
+  resolveOpenAIModel as resolveOpenAIModelForProvider,
+  shouldSendOpenAITemperature as shouldSendOpenAITemperatureForProvider,
+} from "./processing/providerClients"
+import type { GeminiMessage, GeminiResponse } from "./processing/types"
 
-// Interface for Gemini API requests
-interface GeminiMessage {
-  role: string;
-  parts: Array<{
-    text?: string;
-    inlineData?: {
-      mimeType: string;
-      data: string;
-    }
-  }>;
+type ScreenshotPayload = {
+  path: string;
+  preview: string;
+  data: string;
 }
 
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string;
-      }>;
-    };
-    finishReason: string;
-  }>;
-}
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: Array<{
-    type: 'text' | 'image';
-    text?: string;
-    source?: {
-      type: 'base64';
-      media_type: string;
-      data: string;
-    };
-  }>;
-}
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
   private screenshotHelper: ScreenshotHelper
@@ -58,39 +48,29 @@ export class ProcessingHelper {
   private currentProcessingAbortController: AbortController | null = null
   private currentExtraProcessingAbortController: AbortController | null = null
   
-  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
-    const status =
-      typeof error?.status === "number"
-        ? error.status
-        : typeof error?.response?.status === "number"
-          ? error.response.status
-          : undefined;
-    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
-    const statusPart = status ? ` (status ${status})` : "";
-    return `[${provider}] ${context} failed${statusPart}: ${message}`;
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: unknown, context: string): string {
+    return formatProviderErrorText(provider, error, context)
   }
 
   private resolveOpenAIModel(selectedModel: string | undefined, openaiCustomModel?: string, openaiBaseUrl?: string): string {
-    const custom = openaiCustomModel?.trim();
-    if (custom) {
-      return custom;
-    }
-
-    const selected = selectedModel || "gpt-4o";
-    if (openaiBaseUrl?.trim() && (selected === "gpt-4o" || selected === "gpt-4o-mini")) {
-      return "gpt-5.3-codex";
-    }
-
-    return selected;
+    return resolveOpenAIModelForProvider(
+      selectedModel,
+      openaiCustomModel,
+      openaiBaseUrl
+    )
   }
 
   private shouldSendOpenAITemperature(openaiBaseUrl?: string): boolean {
-    return !openaiBaseUrl?.trim();
+    return shouldSendOpenAITemperatureForProvider(openaiBaseUrl)
   }
 
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
-    this.screenshotHelper = deps.getScreenshotHelper()
+    const screenshotHelper = deps.getScreenshotHelper()
+    if (!screenshotHelper) {
+      throw new Error("Screenshot helper is not initialized")
+    }
+    this.screenshotHelper = screenshotHelper
     
     // Initialize AI client based on config
     this.initializeAIClient();
@@ -126,12 +106,10 @@ export class ProcessingHelper {
       
       if (config.apiProvider === "openai") {
         if (config.apiKey) {
-          this.openaiClient = new OpenAI({ 
-            apiKey: config.apiKey,
-            baseURL: config.openaiBaseUrl?.trim() || undefined,
-            timeout: 60000, // 60 second timeout
-            maxRetries: 2   // Retry up to 2 times
-          });
+          this.openaiClient = buildOpenAIClient(
+            config.apiKey,
+            config.openaiBaseUrl
+          )
           this.geminiApiKey = null;
           this.anthropicClient = null;
           console.log("OpenAI client initialized successfully");
@@ -331,7 +309,9 @@ export class ProcessingHelper {
         )
 
         // Filter out any nulls from failed screenshots
-        const validScreenshots = screenshots.filter(Boolean);
+        const validScreenshots = screenshots.filter(
+          (screenshot): screenshot is ScreenshotPayload => screenshot !== null
+        );
         
         if (validScreenshots.length === 0) {
           throw new Error("Failed to load screenshot data");
@@ -364,7 +344,7 @@ export class ProcessingHelper {
           result.data
         )
         this.deps.setView("solutions")
-      } catch (error: any) {
+      } catch (error: unknown) {
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
           error
@@ -378,7 +358,7 @@ export class ProcessingHelper {
         } else {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            error.message || "Server error. Please try again."
+            getErrorMessage(error, "Server error. Please try again.")
           )
         }
         // Reset view back to queue on error
@@ -443,7 +423,9 @@ export class ProcessingHelper {
         )
         
         // Filter out any nulls from failed screenshots
-        const validScreenshots = screenshots.filter(Boolean);
+        const validScreenshots = screenshots.filter(
+          (screenshot): screenshot is ScreenshotPayload => screenshot !== null
+        );
         
         if (validScreenshots.length === 0) {
           throw new Error("Failed to load screenshot data for debugging");
@@ -471,7 +453,7 @@ export class ProcessingHelper {
             result.error
           )
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (axios.isCancel(error)) {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
@@ -480,7 +462,7 @@ export class ProcessingHelper {
         } else {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            error.message
+            getErrorMessage(error, "Error processing screenshots for debug view.")
           )
         }
       } finally {
@@ -509,7 +491,7 @@ export class ProcessingHelper {
         });
       }
 
-      let problemInfo;
+      let problemInfo: import("./processing/types").ProcessingProblemInfo | null = null
       
       if (config.apiProvider === "openai") {
         // Verify OpenAI client
@@ -526,15 +508,13 @@ export class ProcessingHelper {
 
         // Get conversation context if available
         const conversationContext = this.getConversationContext();
+        const extractionPrompt = buildExtractionPrompt(
+          language,
+          conversationContext
+        )
         
         // Use OpenAI for processing
-        const systemPrompt = conversationContext
-          ? `You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Consider the conversation context provided. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text.`
-          : "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text.";
-        
-        const userPrompt = conversationContext
-          ? `Extract the coding problem details from these screenshots. Consider the following conversation context:\n\n${conversationContext}\n\nReturn in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
-          : `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`;
+        const { systemPrompt, userPrompt } = extractionPrompt
         
         const useCustomEndpointFormat = !!config.openaiBaseUrl?.trim();
 
@@ -591,7 +571,7 @@ export class ProcessingHelper {
         );
         const extractionResponse = await this.openaiClient.chat.completions.create({
           model: openaiModel,
-          messages: messages as any,
+          messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
           max_tokens: 4000,
           ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
             ? { temperature: 0.2 }
@@ -599,18 +579,17 @@ export class ProcessingHelper {
         });
 
         // Parse the response
-        try {
-          const responseText = extractionResponse.choices[0].message.content;
-          // Handle when OpenAI might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error parsing OpenAI response:", error);
+        const responseText = extractionResponse.choices[0].message.content ?? "";
+        const parsedProblemInfo = parseProblemInfoResponse(responseText)
+        if (!parsedProblemInfo) {
+          console.error("Error parsing OpenAI response:", responseText);
           return {
             success: false,
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
           };
         }
+        problemInfo = parsedProblemInfo
+
       } else if (config.apiProvider === "gemini")  {
         // Use Gemini API
         if (!this.geminiApiKey) {
@@ -623,10 +602,12 @@ export class ProcessingHelper {
         try {
           // Get conversation context if available
           const conversationContext = this.getConversationContext();
+          const extractionPrompt = buildExtractionPrompt(
+            language,
+            conversationContext
+          )
           
-          const geminiPrompt = conversationContext
-            ? `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Consider the following conversation context:\n\n${conversationContext}\n\nReturn the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`
-            : `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`;
+          const geminiPrompt = `${extractionPrompt.systemPrompt} ${extractionPrompt.userPrompt}`
           
           // Create Gemini message structure
           const geminiMessages: GeminiMessage[] = [
@@ -666,10 +647,14 @@ export class ProcessingHelper {
           }
           
           const responseText = responseData.candidates[0].content.parts[0].text;
-          
-          // Handle when Gemini might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
+          const parsedProblemInfo = parseProblemInfoResponse(responseText)
+          if (!parsedProblemInfo) {
+            return {
+              success: false,
+              error: "Failed to parse problem information. Please try again or use clearer screenshots."
+            };
+          }
+          problemInfo = parsedProblemInfo
         } catch (error) {
           console.error("Error using Gemini API:", error);
           return {
@@ -688,10 +673,12 @@ export class ProcessingHelper {
         try {
           // Get conversation context if available
           const conversationContext = this.getConversationContext();
+          const extractionPrompt = buildExtractionPrompt(
+            language,
+            conversationContext
+          )
           
-          const anthropicPrompt = conversationContext
-            ? `Extract the coding problem details from these screenshots. Consider the following conversation context:\n\n${conversationContext}\n\nReturn in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`
-            : `Extract the coding problem details from these screenshots. Return in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`;
+          const anthropicPrompt = `${extractionPrompt.userPrompt.replace("Preferred coding language we gonna use for this problem is", "Preferred coding language is")}`
           
           const messages = [
             {
@@ -721,18 +708,28 @@ export class ProcessingHelper {
           });
 
           const responseText = (response.content[0] as { type: 'text', text: string }).text;
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error: any) {
+          const parsedProblemInfo = parseProblemInfoResponse(responseText)
+          if (!parsedProblemInfo) {
+            return {
+              success: false,
+              error: "Failed to parse problem information. Please try again or use clearer screenshots."
+            };
+          }
+          problemInfo = parsedProblemInfo
+        } catch (error: unknown) {
           console.error("Error using Anthropic API:", error);
+          const providerError = asProviderError(error);
 
           // Add specific handling for Claude's limitations
-          if (error.status === 429) {
+          if (providerError.status === 429) {
             return {
               success: false,
               error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
             };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
+          } else if (
+            providerError.status === 413 ||
+            (providerError.message && providerError.message.includes("token"))
+          ) {
             return {
               success: false,
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
@@ -752,6 +749,13 @@ export class ProcessingHelper {
           message: "Problem analyzed successfully. Preparing to generate solution...",
           progress: 40
         });
+      }
+
+      if (!problemInfo) {
+        return {
+          success: false,
+          error: "Failed to parse problem information. Please try again or use clearer screenshots.",
+        }
       }
 
       // Store problem info in AppState
@@ -789,7 +793,7 @@ export class ProcessingHelper {
       }
 
       return { success: false, error: "Failed to process screenshots" };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If the request was cancelled, don't retry
       if (axios.isCancel(error)) {
         return {
@@ -800,19 +804,20 @@ export class ProcessingHelper {
       
       const config = configHelper.loadConfig();
       const provider: APIProvider = config.apiProvider;
+      const providerError = asProviderError(error);
 
       // Handle OpenAI API errors specifically
-      if (error?.response?.status === 401) {
+      if (providerError.response?.status === 401) {
         return {
           success: false,
           error: this.formatProviderError(provider, error, "Auth")
         };
-      } else if (error?.response?.status === 429) {
+      } else if (providerError.response?.status === 429) {
         return {
           success: false,
           error: this.formatProviderError(provider, error, "Rate limit / quota")
         };
-      } else if (error?.response?.status === 500) {
+      } else if (providerError.response?.status === 500) {
         return {
           success: false,
           error: this.formatProviderError(provider, error, "Server error")
@@ -847,35 +852,9 @@ export class ProcessingHelper {
       }
 
       // Create prompt for solution generation
-      const promptText = `
-Generate a detailed solution for the following coding problem:
+      const promptText = buildSolutionPrompt(problemInfo, language)
 
-PROBLEM STATEMENT:
-${problemInfo.problem_statement}
-
-CONSTRAINTS:
-${problemInfo.constraints || "No specific constraints provided."}
-
-EXAMPLE INPUT:
-${problemInfo.example_input || "No example input provided."}
-
-EXAMPLE OUTPUT:
-${problemInfo.example_output || "No example output provided."}
-
-LANGUAGE: ${language}
-
-I need the response in the following format:
-1. Code: A clean, optimized implementation in ${language}
-2. Your Thoughts: A list of key insights and reasoning behind your approach
-3. Time complexity: O(X) with a detailed explanation (at least 2 sentences)
-4. Space complexity: O(X) with a detailed explanation (at least 2 sentences)
-
-For complexity explanations, please be thorough. For example: "Time complexity: O(n) because we iterate through the array only once. This is optimal as we need to examine each element at least once to find the solution." or "Space complexity: O(n) because in the worst case, we store all elements in the hashmap. The additional space scales linearly with the input size."
-
-Your solution should be efficient, well-commented, and handle edge cases.
-`;
-
-      let responseContent;
+      let responseContent = "";
       
       if (config.apiProvider === "openai") {
         // OpenAI processing
@@ -904,7 +883,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
             : {})
         });
 
-        responseContent = solutionResponse.choices[0].message.content;
+        responseContent = solutionResponse.choices[0].message.content ?? "";
       } else if (config.apiProvider === "gemini")  {
         // Gemini processing
         if (!this.geminiApiKey) {
@@ -946,7 +925,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
             throw new Error("Empty response from Gemini API");
           }
           
-          responseContent = responseData.candidates[0].content.parts[0].text;
+          responseContent = responseData.candidates[0].content.parts[0].text ?? "";
         } catch (error) {
           console.error("Error using Gemini API for solution:", error);
           return {
@@ -985,16 +964,20 @@ Your solution should be efficient, well-commented, and handle edge cases.
           });
 
           responseContent = (response.content[0] as { type: 'text', text: string }).text;
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error using Anthropic API for solution:", error);
+          const providerError = asProviderError(error);
 
           // Add specific handling for Claude's limitations
-          if (error.status === 429) {
+          if (providerError.status === 429) {
             return {
               success: false,
               error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
             };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
+          } else if (
+            providerError.status === 413 ||
+            (providerError.message && providerError.message.includes("token"))
+          ) {
             return {
               success: false,
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
@@ -1077,7 +1060,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
       };
 
       return { success: true, data: formattedResponse };
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (axios.isCancel(error)) {
         return {
           success: false,
@@ -1085,12 +1068,14 @@ Your solution should be efficient, well-commented, and handle edge cases.
         };
       }
       
-      if (error?.response?.status === 401) {
+      const providerError = asProviderError(error);
+
+      if (providerError.response?.status === 401) {
         return {
           success: false,
           error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Auth")
         };
-      } else if (error?.response?.status === 429) {
+      } else if (providerError.response?.status === 429) {
         return {
           success: false,
           error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Rate limit / quota")
@@ -1126,8 +1111,9 @@ Your solution should be efficient, well-commented, and handle edge cases.
 
       // Prepare the images for the API call
       const imageDataList = screenshots.map(screenshot => screenshot.data);
+      const debugPromptBundle = buildDebugPrompt(problemInfo, language)
       
-      let debugContent;
+      let debugContent = "";
       
       if (config.apiProvider === "openai") {
         if (!this.openaiClient) {
@@ -1146,25 +1132,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
                 content: [
                   {
                     type: "input_text" as const,
-                    text: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`,
+                    text: debugPromptBundle.systemPrompt,
                   },
                 ],
               },
@@ -1173,11 +1141,7 @@ If you include code examples, use proper markdown code blocks with language spec
                 content: [
                   {
                     type: "input_text" as const,
-                    text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed`,
+                    text: debugPromptBundle.userPrompt,
                   },
                   ...imageDataList.map((data) => ({
                     type: "input_image" as const,
@@ -1189,36 +1153,14 @@ If you include code examples, use proper markdown code blocks with language spec
           : [
           {
             role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
+            content: debugPromptBundle.systemPrompt
           },
           {
             role: "user" as const,
             content: [
               {
                 type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
+                text: debugPromptBundle.userPrompt
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -1242,14 +1184,14 @@ If you include code examples, use proper markdown code blocks with language spec
         );
         const debugResponse = await this.openaiClient.chat.completions.create({
           model: openaiModel,
-          messages: messages as any,
+          messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
           max_tokens: 4000,
           ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
             ? { temperature: 0.2 }
             : {})
         });
         
-        debugContent = debugResponse.choices[0].message.content;
+        debugContent = debugResponse.choices[0].message.content ?? "";
       } else if (config.apiProvider === "gemini")  {
         if (!this.geminiApiKey) {
           return {
@@ -1259,29 +1201,7 @@ If you include code examples, use proper markdown code blocks with language spec
         }
         
         try {
-          const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).
-`;
+          const debugPrompt = `${debugPromptBundle.systemPrompt}\n\n${debugPromptBundle.userPrompt}`
 
           const geminiMessages = [
             {
@@ -1323,7 +1243,7 @@ If you include code examples, use proper markdown code blocks with language spec
             throw new Error("Empty response from Gemini API");
           }
           
-          debugContent = responseData.candidates[0].content.parts[0].text;
+          debugContent = responseData.candidates[0].content.parts[0].text ?? "";
         } catch (error) {
           console.error("Error using Gemini API for debugging:", error);
           return {
@@ -1340,29 +1260,7 @@ If you include code examples, use proper markdown code blocks with language spec
         }
         
         try {
-          const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification.
-`;
+          const debugPrompt = `${debugPromptBundle.systemPrompt}\n\n${debugPromptBundle.userPrompt}`
 
           const messages = [
             {
@@ -1399,16 +1297,20 @@ If you include code examples, use proper markdown code blocks with language spec
           });
           
           debugContent = (response.content[0] as { type: 'text', text: string }).text;
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error using Anthropic API for debugging:", error);
+          const providerError = asProviderError(error);
           
           // Add specific handling for Claude's limitations
-          if (error.status === 429) {
+          if (providerError.status === 429) {
             return {
               success: false,
               error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
             };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
+          } else if (
+            providerError.status === 413 ||
+            (providerError.message && providerError.message.includes("token"))
+          ) {
             return {
               success: false,
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
@@ -1430,37 +1332,12 @@ If you include code examples, use proper markdown code blocks with language spec
         });
       }
 
-      let extractedCode = "// Debug mode - see analysis below";
-      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/);
-      if (codeMatch && codeMatch[1]) {
-        extractedCode = codeMatch[1].trim();
-      }
-
-      let formattedDebugContent = debugContent;
-      
-      if (!debugContent.includes('# ') && !debugContent.includes('## ')) {
-        formattedDebugContent = debugContent
-          .replace(/issues identified|problems found|bugs found/i, '## Issues Identified')
-          .replace(/code improvements|improvements|suggested changes/i, '## Code Improvements')
-          .replace(/optimizations|performance improvements/i, '## Optimizations')
-          .replace(/explanation|detailed analysis/i, '## Explanation');
-      }
-
-      const bulletPoints = formattedDebugContent.match(/(?:^|\n)[ ]*(?:[-*•]|\d+\.)[ ]+([^\n]+)/g);
-      const thoughts = bulletPoints 
-        ? bulletPoints.map(point => point.replace(/^[ ]*(?:[-*•]|\d+\.)[ ]+/, '').trim()).slice(0, 5)
-        : ["Debug analysis based on your screenshots"];
-      
-      const response = {
-        code: extractedCode,
-        debug_analysis: formattedDebugContent,
-        thoughts: thoughts,
-        time_complexity: "N/A - Debug mode",
-        space_complexity: "N/A - Debug mode"
-      };
+      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/)
+      const extractedCode = codeMatch?.[1]?.trim() || "// Debug mode - see analysis below"
+      const response = buildDebugResponse(extractedCode, debugContent)
 
       return { success: true, data: response };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Debug processing error:", error);
       return { success: false, error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Debug processing") };
     }
