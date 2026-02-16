@@ -15,8 +15,6 @@ import { useToast } from "../../contexts/toast";
 import { CandidateProfileSection, CandidateProfile } from "./CandidateProfileSection";
 import {
   APIProvider,
-  AIModel,
-  MODEL_CATEGORIES,
   DEFAULT_MODELS,
 } from "../../../shared/aiModels";
 
@@ -99,7 +97,9 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         .getConfig()
         .then((config: Config) => {
           setApiKey(config.apiKey || "");
-          const provider: APIProvider = config.apiProvider || "openai";
+          const configuredProvider = config.apiProvider || "openai";
+          const provider: APIProvider =
+            configuredProvider === "gemini" ? "openai" : configuredProvider;
           setApiProvider(provider);
           const providerDefaults = DEFAULT_MODELS[provider];
           setExtractionModel(
@@ -119,12 +119,12 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           setOpenaiCustomModel(config.openaiCustomModel || "");
           setTranscriptionProvider(
             config.transcriptionProvider ||
-              (provider === "openai" || provider === "gemini" ? provider : "openai")
+              (configuredProvider === "gemini" ? "gemini" : "openai")
           );
           setSpeechRecognitionModel(
             config.speechRecognitionModel ||
               providerDefaults.speechRecognitionModel ||
-              (config.apiProvider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
+              (configuredProvider === "gemini" ? "gemini-3-flash-preview" : "whisper-1")
           );
           setGroqApiKey(config.groqApiKey || "");
           setGroqWhisperModel(config.groqWhisperModel || "whisper-large-v3-turbo");
@@ -285,28 +285,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                     }`}
                   />
                   <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">OpenAI</p>
-                    <p className="text-xs text-white/60">OpenAI models</p>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`flex-1 p-2 rounded-lg cursor-pointer transition-colors ${
-                  apiProvider === "gemini"
-                    ? "bg-white/10 border border-white/20"
-                    : "bg-black/30 border border-white/5 hover:bg-white/5"
-                }`}
-                onClick={() => handleProviderChange("gemini")}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      apiProvider === "gemini" ? "bg-white" : "bg-white/20"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Gemini</p>
-                    <p className="text-xs text-white/60">Gemini models</p>
+                    <p className="font-medium text-white text-sm">OpenAI compatible</p>
+                    <p className="text-xs text-white/60">Any OpenAI-style endpoint</p>
                   </div>
                 </div>
               </div>
@@ -325,8 +305,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                     }`}
                   />
                   <div className="flex flex-col">
-                    <p className="font-medium text-white text-sm">Claude</p>
-                    <p className="text-xs text-white/60">Claude models</p>
+                    <p className="font-medium text-white text-sm">Anthropic compatible</p>
+                    <p className="text-xs text-white/60">Any Anthropic-style endpoint</p>
                   </div>
                 </div>
               </div>
@@ -335,9 +315,9 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           
           <div className="space-y-2">
             <label className="text-sm font-medium text-white" htmlFor="apiKey">
-            {apiProvider === "openai" ? "OpenAI API Key" : 
-             apiProvider === "gemini" ? "Gemini API Key" : 
-             "Anthropic API Key"}
+            {apiProvider === "openai"
+              ? "OpenAI compatible API Key"
+              : "Anthropic compatible API Key"}
             </label>
             <Input
               id="apiKey"
@@ -345,9 +325,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={
-                apiProvider === "openai" ? "sk-..." : 
-                apiProvider === "gemini" ? "Enter your Gemini API key" :
-                "sk-ant-..."
+                apiProvider === "openai" ? "sk-..." : "sk-ant-..."
               }
               className="bg-black/50 border-white/10 text-white"
             />
@@ -357,7 +335,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
               </p>
             )}
             <p className="text-xs text-white/50">
-              Your API key is stored locally and never sent to any server except {apiProvider === "openai" ? "OpenAI" : "Google"}
+              Your API key is stored locally and only sent to your selected provider endpoint.
             </p>
             <div className="mt-2 p-2 rounded-md bg-white/5 border border-white/10">
               <p className="text-xs text-white/80 mb-1">Don't have an API key?</p>
@@ -372,18 +350,6 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                     className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
                   </p>
                   <p className="text-xs text-white/60">3. Create a new secret key and paste it here</p>
-                </>
-              ) : apiProvider === "gemini" ?  (
-                <>
-                  <p className="text-xs text-white/60 mb-1">1. Create an account at <button 
-                    onClick={() => openExternalLink('https://aistudio.google.com/')} 
-                    className="text-blue-400 hover:underline cursor-pointer">Google AI Studio</button>
-                  </p>
-                  <p className="text-xs text-white/60 mb-1">2. Go to the <button 
-                    onClick={() => openExternalLink('https://aistudio.google.com/app/apikey')} 
-                    className="text-blue-400 hover:underline cursor-pointer">API Keys</button> section
-                  </p>
-                  <p className="text-xs text-white/60">3. Create a new API key and paste it here</p>
                 </>
               ) : (
                 <>
@@ -487,64 +453,66 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           <div className="space-y-4 mt-4">
             <label className="text-sm font-medium text-white">AI Model Selection</label>
             <p className="text-xs text-white/60 -mt-3 mb-2">
-              Select which models to use for each stage of the process
+              Enter model names for each stage. Any provider-compatible model ID is accepted.
             </p>
-            
-            {MODEL_CATEGORIES.map((category) => {
-              // Get the appropriate model list based on selected provider
-              const models: AIModel[] = category.modelsByProvider[apiProvider];
-              
-              return (
-                <div key={category.key} className="mb-4">
-                  <label className="text-sm font-medium text-white mb-1 block">
-                    {category.title}
-                  </label>
-                  <p className="text-xs text-white/60 mb-2">{category.description}</p>
-                  
-                  <div className="space-y-2">
-                    {models.map((m) => {
-                      // Determine which state to use based on category key
-                      const currentValue = 
-                        category.key === 'extractionModel' ? extractionModel :
-                        category.key === 'solutionModel' ? solutionModel :
-                        category.key === 'debuggingModel' ? debuggingModel :
-                        answerModel;
-                      
-                      // Determine which setter function to use
-                      const setValue = 
-                        category.key === 'extractionModel' ? setExtractionModel :
-                        category.key === 'solutionModel' ? setSolutionModel :
-                        category.key === 'debuggingModel' ? setDebuggingModel :
-                        setAnswerModel;
-                        
-                      return (
-                        <div
-                          key={m.id}
-                          className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                            currentValue === m.id
-                              ? "bg-white/10 border border-white/20"
-                              : "bg-black/30 border border-white/5 hover:bg-white/5"
-                          }`}
-                          onClick={() => setValue(m.id)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`w-3 h-3 rounded-full ${
-                                currentValue === m.id ? "bg-white" : "bg-white/20"
-                              }`}
-                            />
-                            <div>
-                              <p className="font-medium text-white text-xs">{m.name}</p>
-                              <p className="text-xs text-white/60">{m.description}</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white" htmlFor="extractionModel">
+                  Problem Extraction Model
+                </label>
+                <Input
+                  id="extractionModel"
+                  type="text"
+                  value={extractionModel}
+                  onChange={(e) => setExtractionModel(e.target.value)}
+                  placeholder="gpt-4.1-mini"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white" htmlFor="solutionModel">
+                  Solution Generation Model
+                </label>
+                <Input
+                  id="solutionModel"
+                  type="text"
+                  value={solutionModel}
+                  onChange={(e) => setSolutionModel(e.target.value)}
+                  placeholder="gpt-4.1"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white" htmlFor="debuggingModel">
+                  Debugging Model
+                </label>
+                <Input
+                  id="debuggingModel"
+                  type="text"
+                  value={debuggingModel}
+                  onChange={(e) => setDebuggingModel(e.target.value)}
+                  placeholder="gpt-4.1"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white" htmlFor="answerModel">
+                  Answer Suggestions Model
+                </label>
+                <Input
+                  id="answerModel"
+                  type="text"
+                  value={answerModel}
+                  onChange={(e) => setAnswerModel(e.target.value)}
+                  placeholder="gpt-4.1-mini"
+                  className="bg-black/50 border-white/10 text-white"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2 mt-4">
