@@ -20,6 +20,26 @@ export interface ITranscriptionHelper {
   transcribeAudio(audioBuffer: Buffer, mimeType?: string): Promise<TranscriptionResult>;
 }
 
+interface ProviderErrorShape {
+  status?: number;
+  message?: string;
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        message?: string;
+      };
+    };
+  };
+}
+
+const asProviderError = (error: unknown): ProviderErrorShape => {
+  if (typeof error === "object" && error !== null) {
+    return error as ProviderErrorShape;
+  }
+  return {};
+};
+
 export class TranscriptionHelper implements ITranscriptionHelper {
   private openai: OpenAI | null = null;
   private groqOpenAI: OpenAI | null = null;
@@ -94,14 +114,15 @@ export class TranscriptionHelper implements ITranscriptionHelper {
     return provider === "openai" || provider === "gemini" || provider === "groq";
   }
 
-  private formatProviderError(provider: "openai" | "gemini" | "anthropic" | "groq", error: any, context: string): string {
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic" | "groq", error: unknown, context: string): string {
+    const providerError = asProviderError(error);
     const status =
-      typeof error?.status === "number"
-        ? error.status
-        : typeof error?.response?.status === "number"
-          ? error.response.status
+      typeof providerError.status === "number"
+        ? providerError.status
+        : typeof providerError.response?.status === "number"
+          ? providerError.response.status
           : undefined;
-    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
+    const message = providerError.message || providerError.response?.data?.error?.message || "Unknown error";
     const statusPart = status ? ` (status ${status})` : "";
     return `[${provider}] ${context} failed${statusPart}: ${message}`;
   }
@@ -198,19 +219,20 @@ export class TranscriptionHelper implements ITranscriptionHelper {
         text: transcription.text,
         language: transcription.language,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Clean up on error
       this.cleanupTempFile(tempPath);
       
       console.error('OpenAI transcription error:', error);
+      const providerError = asProviderError(error);
       
       // Provide more specific error messages
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError("openai", error, "Auth"));
       } else if (status === 429) {
         throw new Error(this.formatProviderError("openai", error, "Rate limit"));
-      } else if (error.message?.includes('file')) {
+      } else if (providerError.message?.includes('file')) {
         throw new Error(this.formatProviderError("openai", error, "Invalid audio file"));
       }
 
@@ -249,11 +271,12 @@ export class TranscriptionHelper implements ITranscriptionHelper {
         text: transcription.text,
         language: transcription.language,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.cleanupTempFile(tempPath);
       console.error('Groq transcription error:', error);
+      const providerError = asProviderError(error);
 
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError("groq", error, "Auth"));
       } else if (status === 429) {
@@ -350,11 +373,12 @@ export class TranscriptionHelper implements ITranscriptionHelper {
         text: transcriptionText.trim(),
         language: language || undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Gemini transcription error:', error);
+      const providerError = asProviderError(error);
       
       // Provide more specific error messages
-      const status = error?.status ?? error?.response?.status;
+      const status = providerError.status ?? providerError.response?.status;
       if (status === 401) {
         throw new Error(this.formatProviderError("gemini", error, "Auth"));
       } else if (status === 429) {

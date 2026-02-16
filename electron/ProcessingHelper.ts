@@ -39,6 +39,31 @@ type ScreenshotPayload = {
   data: string;
 }
 
+interface ProviderErrorShape {
+  status?: number;
+  message?: string;
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        message?: string;
+      };
+    };
+  };
+}
+
+const asProviderError = (error: unknown): ProviderErrorShape => {
+  if (typeof error === "object" && error !== null) {
+    return error as ProviderErrorShape;
+  }
+  return {};
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  const providerError = asProviderError(error);
+  return providerError.message || fallback;
+};
+
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
   private screenshotHelper: ScreenshotHelper
@@ -50,14 +75,15 @@ export class ProcessingHelper {
   private currentProcessingAbortController: AbortController | null = null
   private currentExtraProcessingAbortController: AbortController | null = null
   
-  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: any, context: string): string {
+  private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: unknown, context: string): string {
+    const providerError = asProviderError(error);
     const status =
-      typeof error?.status === "number"
-        ? error.status
-        : typeof error?.response?.status === "number"
-          ? error.response.status
+      typeof providerError.status === "number"
+        ? providerError.status
+        : typeof providerError.response?.status === "number"
+          ? providerError.response.status
           : undefined;
-    const message = error?.message || error?.response?.data?.error?.message || "Unknown error";
+    const message = providerError.message || providerError.response?.data?.error?.message || "Unknown error";
     const statusPart = status ? ` (status ${status})` : "";
     return `[${provider}] ${context} failed${statusPart}: ${message}`;
   }
@@ -362,7 +388,7 @@ export class ProcessingHelper {
           result.data
         )
         this.deps.setView("solutions")
-      } catch (error: any) {
+      } catch (error: unknown) {
         mainWindow.webContents.send(
           this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
           error
@@ -376,7 +402,7 @@ export class ProcessingHelper {
         } else {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR,
-            error.message || "Server error. Please try again."
+            getErrorMessage(error, "Server error. Please try again.")
           )
         }
         // Reset view back to queue on error
@@ -471,7 +497,7 @@ export class ProcessingHelper {
             result.error
           )
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (axios.isCancel(error)) {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
@@ -480,7 +506,7 @@ export class ProcessingHelper {
         } else {
           mainWindow.webContents.send(
             this.deps.PROCESSING_EVENTS.DEBUG_ERROR,
-            error.message
+            getErrorMessage(error, "Error processing screenshots for debug view.")
           )
         }
       } finally {
@@ -591,7 +617,7 @@ export class ProcessingHelper {
         );
         const extractionResponse = await this.openaiClient.chat.completions.create({
           model: openaiModel,
-          messages: messages as any,
+          messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
           max_tokens: 4000,
           ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
             ? { temperature: 0.2 }
@@ -723,16 +749,20 @@ export class ProcessingHelper {
           const responseText = (response.content[0] as { type: 'text', text: string }).text;
           const jsonText = responseText.replace(/```json|```/g, '').trim();
           problemInfo = JSON.parse(jsonText);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error using Anthropic API:", error);
+          const providerError = asProviderError(error);
 
           // Add specific handling for Claude's limitations
-          if (error.status === 429) {
+          if (providerError.status === 429) {
             return {
               success: false,
               error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
             };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
+          } else if (
+            providerError.status === 413 ||
+            (providerError.message && providerError.message.includes("token"))
+          ) {
             return {
               success: false,
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
@@ -789,7 +819,7 @@ export class ProcessingHelper {
       }
 
       return { success: false, error: "Failed to process screenshots" };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If the request was cancelled, don't retry
       if (axios.isCancel(error)) {
         return {
@@ -800,19 +830,20 @@ export class ProcessingHelper {
       
       const config = configHelper.loadConfig();
       const provider: APIProvider = config.apiProvider;
+      const providerError = asProviderError(error);
 
       // Handle OpenAI API errors specifically
-      if (error?.response?.status === 401) {
+      if (providerError.response?.status === 401) {
         return {
           success: false,
           error: this.formatProviderError(provider, error, "Auth")
         };
-      } else if (error?.response?.status === 429) {
+      } else if (providerError.response?.status === 429) {
         return {
           success: false,
           error: this.formatProviderError(provider, error, "Rate limit / quota")
         };
-      } else if (error?.response?.status === 500) {
+      } else if (providerError.response?.status === 500) {
         return {
           success: false,
           error: this.formatProviderError(provider, error, "Server error")
@@ -985,16 +1016,20 @@ Your solution should be efficient, well-commented, and handle edge cases.
           });
 
           responseContent = (response.content[0] as { type: 'text', text: string }).text;
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error using Anthropic API for solution:", error);
+          const providerError = asProviderError(error);
 
           // Add specific handling for Claude's limitations
-          if (error.status === 429) {
+          if (providerError.status === 429) {
             return {
               success: false,
               error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
             };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
+          } else if (
+            providerError.status === 413 ||
+            (providerError.message && providerError.message.includes("token"))
+          ) {
             return {
               success: false,
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
@@ -1077,7 +1112,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
       };
 
       return { success: true, data: formattedResponse };
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (axios.isCancel(error)) {
         return {
           success: false,
@@ -1085,12 +1120,14 @@ Your solution should be efficient, well-commented, and handle edge cases.
         };
       }
       
-      if (error?.response?.status === 401) {
+      const providerError = asProviderError(error);
+
+      if (providerError.response?.status === 401) {
         return {
           success: false,
           error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Auth")
         };
-      } else if (error?.response?.status === 429) {
+      } else if (providerError.response?.status === 429) {
         return {
           success: false,
           error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Rate limit / quota")
@@ -1242,7 +1279,7 @@ If you include code examples, use proper markdown code blocks with language spec
         );
         const debugResponse = await this.openaiClient.chat.completions.create({
           model: openaiModel,
-          messages: messages as any,
+          messages: messages as unknown as OpenAI.Chat.ChatCompletionMessageParam[],
           max_tokens: 4000,
           ...(this.shouldSendOpenAITemperature(config.openaiBaseUrl)
             ? { temperature: 0.2 }
@@ -1399,16 +1436,20 @@ If you include code examples, use proper markdown code blocks with language spec
           });
           
           debugContent = (response.content[0] as { type: 'text', text: string }).text;
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error("Error using Anthropic API for debugging:", error);
+          const providerError = asProviderError(error);
           
           // Add specific handling for Claude's limitations
-          if (error.status === 429) {
+          if (providerError.status === 429) {
             return {
               success: false,
               error: "Claude API rate limit exceeded. Please wait a few minutes before trying again."
             };
-          } else if (error.status === 413 || (error.message && error.message.includes("token"))) {
+          } else if (
+            providerError.status === 413 ||
+            (providerError.message && providerError.message.includes("token"))
+          ) {
             return {
               success: false,
               error: "Your screenshots contain too much information for Claude to process. Switch to OpenAI or Gemini in settings which can handle larger inputs."
@@ -1460,7 +1501,7 @@ If you include code examples, use proper markdown code blocks with language spec
       };
 
       return { success: true, data: response };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Debug processing error:", error);
       return { success: false, error: this.formatProviderError(configHelper.loadConfig().apiProvider, error, "Debug processing") };
     }

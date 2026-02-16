@@ -3,7 +3,12 @@ interface Window {
   __CREDITS__: number
   __LANGUAGE__: string
   __AUTH_TOKEN__: string | null
-  supabase: any // Replace with proper Supabase client type if needed
-  electron: any // Replace with proper Electron type if needed
-  electronAPI: any // Replace with proper Electron API type if needed
+  supabase: unknown
+  electron: {
+    ipcRenderer: {
+      on: (channel: string, func: (...args: unknown[]) => void) => void
+      removeListener: (channel: string, func: (...args: unknown[]) => void) => void
+    }
+  }
+  electronAPI: import("./electron").ElectronAPI
 }

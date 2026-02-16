@@ -1,5 +1,57 @@
+export interface CandidateProfile {
+  name?: string
+  resume?: string
+  jobDescription?: string
+}
+
+export interface ProcessingPayload {
+  problem_statement?: string
+  constraints?: string
+  example_input?: string
+  example_output?: string
+  code?: string
+  thoughts?: string[]
+  time_complexity?: string
+  space_complexity?: string
+  debug_analysis?: string
+  [key: string]: unknown
+}
+
+export interface UpdateInfoPayload {
+  [key: string]: unknown
+}
+
+export interface AppConfig {
+  apiKey: string
+  model: string
+  language?: string
+  opacity?: number
+  apiProvider?: "openai" | "gemini" | "anthropic"
+  extractionModel?: string
+  solutionModel?: string
+  debuggingModel?: string
+  answerModel?: string
+  answerSystemPrompt?: string
+  speechRecognitionModel?: string
+  transcriptionProvider?: "openai" | "gemini" | "groq"
+  openaiBaseUrl?: string
+  openaiCustomModel?: string
+  groqApiKey?: string
+  groqWhisperModel?: string
+  candidateProfile?: CandidateProfile
+}
+
+export type AppConfigUpdate = Partial<AppConfig>
+
+export interface ConversationMessage {
+  id: string
+  speaker: "interviewer" | "interviewee"
+  text: string
+  timestamp: number
+  edited?: boolean
+}
+
 export interface ElectronAPI {
-  // Original methods
   openSubscriptionPortal: (authData: {
     id: string
     email: string
@@ -9,11 +61,7 @@ export interface ElectronAPI {
     height: number
   }) => Promise<void>
   clearStore: () => Promise<{ success: boolean; error?: string }>
-  getScreenshots: () => Promise<{
-    success: boolean
-    previews?: Array<{ path: string; preview: string }> | null
-    error?: string
-  }>
+  getScreenshots: () => Promise<Array<{ path: string; preview: string }>>
   deleteScreenshot: (
     path: string
   ) => Promise<{ success: boolean; error?: string }>
@@ -23,11 +71,11 @@ export interface ElectronAPI {
   onResetView: (callback: () => void) => () => void
   onSolutionStart: (callback: () => void) => () => void
   onDebugStart: (callback: () => void) => () => void
-  onDebugSuccess: (callback: (data: any) => void) => () => void
+  onDebugSuccess: <T = ProcessingPayload>(callback: (data: T) => void) => () => void
   onSolutionError: (callback: (error: string) => void) => () => void
   onProcessingNoScreenshots: (callback: () => void) => () => void
-  onProblemExtracted: (callback: (data: any) => void) => () => void
-  onSolutionSuccess: (callback: (data: any) => void) => () => void
+  onProblemExtracted: <T = ProcessingPayload>(callback: (data: T) => void) => () => void
+  onSolutionSuccess: <T = ProcessingPayload>(callback: (data: T) => void) => () => void
   onUnauthorized: (callback: () => void) => () => void
   onDebugError: (callback: (error: string) => void) => () => void
   openExternal: (url: string) => void
@@ -43,8 +91,8 @@ export interface ElectronAPI {
   onSubscriptionPortalClosed: (callback: () => void) => () => void
   startUpdate: () => Promise<{ success: boolean; error?: string }>
   installUpdate: () => void
-  onUpdateAvailable: (callback: (info: any) => void) => () => void
-  onUpdateDownloaded: (callback: (info: any) => void) => () => void
+  onUpdateAvailable: <T = UpdateInfoPayload>(callback: (info: T) => void) => () => void
+  onUpdateDownloaded: <T = UpdateInfoPayload>(callback: (info: T) => void) => () => void
 
   decrementCredits: () => Promise<void>
   setInitialCredits: (credits: number) => Promise<void>
@@ -52,27 +100,28 @@ export interface ElectronAPI {
   onOutOfCredits: (callback: () => void) => () => void
   openSettingsPortal: () => Promise<void>
   getPlatform: () => string
-  
-  // New methods for OpenAI integration
-  getConfig: () => Promise<{ apiKey: string; model: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; answerSystemPrompt?: string; speechRecognitionModel?: string; transcriptionProvider?: "openai" | "gemini" | "groq"; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }>
-  updateConfig: (config: { apiKey?: string; model?: string; apiProvider?: string; extractionModel?: string; solutionModel?: string; debuggingModel?: string; answerModel?: string; answerSystemPrompt?: string; speechRecognitionModel?: string; transcriptionProvider?: "openai" | "gemini" | "groq"; openaiBaseUrl?: string; openaiCustomModel?: string; groqApiKey?: string; groqWhisperModel?: string; candidateProfile?: any }) => Promise<boolean>
+  onShowSettings: (callback: () => void) => () => void
+
+  getConfig: () => Promise<AppConfig>
+  updateConfig: (config: AppConfigUpdate) => Promise<boolean>
   checkApiKey: () => Promise<boolean>
   validateApiKey: (apiKey: string) => Promise<{ valid: boolean; error?: string }>
   openLink: (url: string) => void
   onApiKeyInvalid: (callback: () => void) => () => void
-  removeListener: (eventName: string, callback: (...args: any[]) => void) => void
-  
-  // Conversation & Transcription methods
+  removeListener: (eventName: string, callback: (...args: unknown[]) => void) => void
+  onDeleteLastScreenshot: (callback: () => void) => () => void
+  deleteLastScreenshot: () => Promise<{ success: boolean; error?: string }>
+
   transcribeAudio: (audioBuffer: ArrayBuffer, mimeType: string) => Promise<{ success: boolean; result?: { text: string; language?: string }; error?: string }>
-  addConversationMessage: (text: string, speaker?: string) => Promise<{ success: boolean; message?: any; error?: string }>
-  toggleSpeaker: () => Promise<{ success: boolean; speaker?: string; error?: string }>
-  getConversation: () => Promise<{ success: boolean; messages?: any[]; error?: string }>
+  addConversationMessage: (text: string, speaker?: ConversationMessage["speaker"]) => Promise<{ success: boolean; message?: ConversationMessage; error?: string }>
+  toggleSpeaker: () => Promise<{ success: boolean; speaker?: ConversationMessage["speaker"]; error?: string }>
+  getConversation: () => Promise<{ success: boolean; messages: ConversationMessage[]; error?: string }>
   clearConversation: () => Promise<{ success: boolean; error?: string }>
   updateConversationMessage: (messageId: string, newText: string) => Promise<{ success: boolean; error?: string }>
-  getAnswerSuggestions: (question: string, screenshotContext?: string, candidateProfile?: any) => Promise<{ success: boolean; suggestions?: { suggestions: string[]; reasoning: string }; error?: string }>
-  onConversationMessageAdded: (callback: (message: any) => void) => () => void
-  onSpeakerChanged: (callback: (speaker: string) => void) => () => void
-  onConversationMessageUpdated: (callback: (message: any) => void) => () => void
+  getAnswerSuggestions: (question: string, screenshotContext?: string, candidateProfile?: unknown) => Promise<{ success: boolean; suggestions?: { suggestions: string[]; reasoning: string }; error?: string }>
+  onConversationMessageAdded: (callback: (message: ConversationMessage) => void) => () => void
+  onSpeakerChanged: (callback: (speaker: ConversationMessage["speaker"]) => void) => () => void
+  onConversationMessageUpdated: (callback: (message: ConversationMessage) => void) => () => void
   onConversationCleared: (callback: () => void) => () => void
 }
 
@@ -81,10 +130,10 @@ declare global {
     electronAPI: ElectronAPI
     electron: {
       ipcRenderer: {
-        on: (channel: string, func: (...args: any[]) => void) => void
+        on: (channel: string, func: (...args: unknown[]) => void) => void
         removeListener: (
           channel: string,
-          func: (...args: any[]) => void
+          func: (...args: unknown[]) => void
         ) => void
       }
     }
