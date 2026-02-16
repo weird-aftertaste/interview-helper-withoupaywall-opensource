@@ -10,59 +10,32 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   APIProvider,
 } from "../shared/aiModels";
+import {
+  asProviderError,
+  formatProviderError as formatProviderErrorText,
+  getErrorMessage,
+} from "./processing/errors"
+import {
+  buildDebugPrompt,
+  buildExtractionPrompt,
+  buildSolutionPrompt,
+} from "./processing/promptBuilders"
+import {
+  buildDebugResponse,
+  parseProblemInfoResponse,
+} from "./processing/responseParsers"
+import {
+  buildOpenAIClient,
+  resolveOpenAIModel as resolveOpenAIModelForProvider,
+  shouldSendOpenAITemperature as shouldSendOpenAITemperatureForProvider,
+} from "./processing/providerClients"
+import type { GeminiMessage, GeminiResponse } from "./processing/types"
 
-// Interface for Gemini API requests
-interface GeminiMessage {
-  role: string;
-  parts: Array<{
-    text?: string;
-    inlineData?: {
-      mimeType: string;
-      data: string;
-    }
-  }>;
-}
-
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string;
-      }>;
-    };
-    finishReason: string;
-  }>;
-}
 type ScreenshotPayload = {
   path: string;
   preview: string;
   data: string;
 }
-
-interface ProviderErrorShape {
-  status?: number;
-  message?: string;
-  response?: {
-    status?: number;
-    data?: {
-      error?: {
-        message?: string;
-      };
-    };
-  };
-}
-
-const asProviderError = (error: unknown): ProviderErrorShape => {
-  if (typeof error === "object" && error !== null) {
-    return error as ProviderErrorShape;
-  }
-  return {};
-};
-
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  const providerError = asProviderError(error);
-  return providerError.message || fallback;
-};
 
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
@@ -76,34 +49,19 @@ export class ProcessingHelper {
   private currentExtraProcessingAbortController: AbortController | null = null
   
   private formatProviderError(provider: "openai" | "gemini" | "anthropic", error: unknown, context: string): string {
-    const providerError = asProviderError(error);
-    const status =
-      typeof providerError.status === "number"
-        ? providerError.status
-        : typeof providerError.response?.status === "number"
-          ? providerError.response.status
-          : undefined;
-    const message = providerError.message || providerError.response?.data?.error?.message || "Unknown error";
-    const statusPart = status ? ` (status ${status})` : "";
-    return `[${provider}] ${context} failed${statusPart}: ${message}`;
+    return formatProviderErrorText(provider, error, context)
   }
 
   private resolveOpenAIModel(selectedModel: string | undefined, openaiCustomModel?: string, openaiBaseUrl?: string): string {
-    const custom = openaiCustomModel?.trim();
-    if (custom) {
-      return custom;
-    }
-
-    const selected = selectedModel || "gpt-4o";
-    if (openaiBaseUrl?.trim() && (selected === "gpt-4o" || selected === "gpt-4o-mini")) {
-      return "gpt-5.3-codex";
-    }
-
-    return selected;
+    return resolveOpenAIModelForProvider(
+      selectedModel,
+      openaiCustomModel,
+      openaiBaseUrl
+    )
   }
 
   private shouldSendOpenAITemperature(openaiBaseUrl?: string): boolean {
-    return !openaiBaseUrl?.trim();
+    return shouldSendOpenAITemperatureForProvider(openaiBaseUrl)
   }
 
   constructor(deps: IProcessingHelperDeps) {
@@ -148,12 +106,10 @@ export class ProcessingHelper {
       
       if (config.apiProvider === "openai") {
         if (config.apiKey) {
-          this.openaiClient = new OpenAI({ 
-            apiKey: config.apiKey,
-            baseURL: config.openaiBaseUrl?.trim() || undefined,
-            timeout: 60000, // 60 second timeout
-            maxRetries: 2   // Retry up to 2 times
-          });
+          this.openaiClient = buildOpenAIClient(
+            config.apiKey,
+            config.openaiBaseUrl
+          )
           this.geminiApiKey = null;
           this.anthropicClient = null;
           console.log("OpenAI client initialized successfully");
@@ -535,7 +491,7 @@ export class ProcessingHelper {
         });
       }
 
-      let problemInfo;
+      let problemInfo: import("./processing/types").ProcessingProblemInfo | null = null
       
       if (config.apiProvider === "openai") {
         // Verify OpenAI client
@@ -552,15 +508,13 @@ export class ProcessingHelper {
 
         // Get conversation context if available
         const conversationContext = this.getConversationContext();
+        const extractionPrompt = buildExtractionPrompt(
+          language,
+          conversationContext
+        )
         
         // Use OpenAI for processing
-        const systemPrompt = conversationContext
-          ? `You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Consider the conversation context provided. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text.`
-          : "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text.";
-        
-        const userPrompt = conversationContext
-          ? `Extract the coding problem details from these screenshots. Consider the following conversation context:\n\n${conversationContext}\n\nReturn in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
-          : `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`;
+        const { systemPrompt, userPrompt } = extractionPrompt
         
         const useCustomEndpointFormat = !!config.openaiBaseUrl?.trim();
 
@@ -625,18 +579,17 @@ export class ProcessingHelper {
         });
 
         // Parse the response
-        try {
-          const responseText = extractionResponse.choices[0].message.content ?? "";
-          // Handle when OpenAI might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
-        } catch (error) {
-          console.error("Error parsing OpenAI response:", error);
+        const responseText = extractionResponse.choices[0].message.content ?? "";
+        const parsedProblemInfo = parseProblemInfoResponse(responseText)
+        if (!parsedProblemInfo) {
+          console.error("Error parsing OpenAI response:", responseText);
           return {
             success: false,
             error: "Failed to parse problem information. Please try again or use clearer screenshots."
           };
         }
+        problemInfo = parsedProblemInfo
+
       } else if (config.apiProvider === "gemini")  {
         // Use Gemini API
         if (!this.geminiApiKey) {
@@ -649,10 +602,12 @@ export class ProcessingHelper {
         try {
           // Get conversation context if available
           const conversationContext = this.getConversationContext();
+          const extractionPrompt = buildExtractionPrompt(
+            language,
+            conversationContext
+          )
           
-          const geminiPrompt = conversationContext
-            ? `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Consider the following conversation context:\n\n${conversationContext}\n\nReturn the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`
-            : `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`;
+          const geminiPrompt = `${extractionPrompt.systemPrompt} ${extractionPrompt.userPrompt}`
           
           // Create Gemini message structure
           const geminiMessages: GeminiMessage[] = [
@@ -692,10 +647,14 @@ export class ProcessingHelper {
           }
           
           const responseText = responseData.candidates[0].content.parts[0].text;
-          
-          // Handle when Gemini might wrap the JSON in markdown code blocks
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
+          const parsedProblemInfo = parseProblemInfoResponse(responseText)
+          if (!parsedProblemInfo) {
+            return {
+              success: false,
+              error: "Failed to parse problem information. Please try again or use clearer screenshots."
+            };
+          }
+          problemInfo = parsedProblemInfo
         } catch (error) {
           console.error("Error using Gemini API:", error);
           return {
@@ -714,10 +673,12 @@ export class ProcessingHelper {
         try {
           // Get conversation context if available
           const conversationContext = this.getConversationContext();
+          const extractionPrompt = buildExtractionPrompt(
+            language,
+            conversationContext
+          )
           
-          const anthropicPrompt = conversationContext
-            ? `Extract the coding problem details from these screenshots. Consider the following conversation context:\n\n${conversationContext}\n\nReturn in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`
-            : `Extract the coding problem details from these screenshots. Return in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`;
+          const anthropicPrompt = `${extractionPrompt.userPrompt.replace("Preferred coding language we gonna use for this problem is", "Preferred coding language is")}`
           
           const messages = [
             {
@@ -747,8 +708,14 @@ export class ProcessingHelper {
           });
 
           const responseText = (response.content[0] as { type: 'text', text: string }).text;
-          const jsonText = responseText.replace(/```json|```/g, '').trim();
-          problemInfo = JSON.parse(jsonText);
+          const parsedProblemInfo = parseProblemInfoResponse(responseText)
+          if (!parsedProblemInfo) {
+            return {
+              success: false,
+              error: "Failed to parse problem information. Please try again or use clearer screenshots."
+            };
+          }
+          problemInfo = parsedProblemInfo
         } catch (error: unknown) {
           console.error("Error using Anthropic API:", error);
           const providerError = asProviderError(error);
@@ -782,6 +749,13 @@ export class ProcessingHelper {
           message: "Problem analyzed successfully. Preparing to generate solution...",
           progress: 40
         });
+      }
+
+      if (!problemInfo) {
+        return {
+          success: false,
+          error: "Failed to parse problem information. Please try again or use clearer screenshots.",
+        }
       }
 
       // Store problem info in AppState
@@ -878,33 +852,7 @@ export class ProcessingHelper {
       }
 
       // Create prompt for solution generation
-      const promptText = `
-Generate a detailed solution for the following coding problem:
-
-PROBLEM STATEMENT:
-${problemInfo.problem_statement}
-
-CONSTRAINTS:
-${problemInfo.constraints || "No specific constraints provided."}
-
-EXAMPLE INPUT:
-${problemInfo.example_input || "No example input provided."}
-
-EXAMPLE OUTPUT:
-${problemInfo.example_output || "No example output provided."}
-
-LANGUAGE: ${language}
-
-I need the response in the following format:
-1. Code: A clean, optimized implementation in ${language}
-2. Your Thoughts: A list of key insights and reasoning behind your approach
-3. Time complexity: O(X) with a detailed explanation (at least 2 sentences)
-4. Space complexity: O(X) with a detailed explanation (at least 2 sentences)
-
-For complexity explanations, please be thorough. For example: "Time complexity: O(n) because we iterate through the array only once. This is optimal as we need to examine each element at least once to find the solution." or "Space complexity: O(n) because in the worst case, we store all elements in the hashmap. The additional space scales linearly with the input size."
-
-Your solution should be efficient, well-commented, and handle edge cases.
-`;
+      const promptText = buildSolutionPrompt(problemInfo, language)
 
       let responseContent = "";
       
@@ -1163,6 +1111,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
 
       // Prepare the images for the API call
       const imageDataList = screenshots.map(screenshot => screenshot.data);
+      const debugPromptBundle = buildDebugPrompt(problemInfo, language)
       
       let debugContent = "";
       
@@ -1183,25 +1132,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
                 content: [
                   {
                     type: "input_text" as const,
-                    text: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`,
+                    text: debugPromptBundle.systemPrompt,
                   },
                 ],
               },
@@ -1210,11 +1141,7 @@ If you include code examples, use proper markdown code blocks with language spec
                 content: [
                   {
                     type: "input_text" as const,
-                    text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed`,
+                    text: debugPromptBundle.userPrompt,
                   },
                   ...imageDataList.map((data) => ({
                     type: "input_image" as const,
@@ -1226,36 +1153,14 @@ If you include code examples, use proper markdown code blocks with language spec
           : [
           {
             role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
+            content: debugPromptBundle.systemPrompt
           },
           {
             role: "user" as const,
             content: [
               {
                 type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
+                text: debugPromptBundle.userPrompt
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -1296,29 +1201,7 @@ If you include code examples, use proper markdown code blocks with language spec
         }
         
         try {
-          const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).
-`;
+          const debugPrompt = `${debugPromptBundle.systemPrompt}\n\n${debugPromptBundle.userPrompt}`
 
           const geminiMessages = [
             {
@@ -1377,29 +1260,7 @@ If you include code examples, use proper markdown code blocks with language spec
         }
         
         try {
-          const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification.
-`;
+          const debugPrompt = `${debugPromptBundle.systemPrompt}\n\n${debugPromptBundle.userPrompt}`
 
           const messages = [
             {
@@ -1471,34 +1332,9 @@ If you include code examples, use proper markdown code blocks with language spec
         });
       }
 
-      let extractedCode = "// Debug mode - see analysis below";
-      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/);
-      if (codeMatch && codeMatch[1]) {
-        extractedCode = codeMatch[1].trim();
-      }
-
-      let formattedDebugContent = debugContent;
-      
-      if (!debugContent.includes('# ') && !debugContent.includes('## ')) {
-        formattedDebugContent = debugContent
-          .replace(/issues identified|problems found|bugs found/i, '## Issues Identified')
-          .replace(/code improvements|improvements|suggested changes/i, '## Code Improvements')
-          .replace(/optimizations|performance improvements/i, '## Optimizations')
-          .replace(/explanation|detailed analysis/i, '## Explanation');
-      }
-
-      const bulletPoints = formattedDebugContent.match(/(?:^|\n)[ ]*(?:[-*•]|\d+\.)[ ]+([^\n]+)/g);
-      const thoughts = bulletPoints 
-        ? bulletPoints.map(point => point.replace(/^[ ]*(?:[-*•]|\d+\.)[ ]+/, '').trim()).slice(0, 5)
-        : ["Debug analysis based on your screenshots"];
-      
-      const response = {
-        code: extractedCode,
-        debug_analysis: formattedDebugContent,
-        thoughts: thoughts,
-        time_complexity: "N/A - Debug mode",
-        space_complexity: "N/A - Debug mode"
-      };
+      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/)
+      const extractedCode = codeMatch?.[1]?.trim() || "// Debug mode - see analysis below"
+      const response = buildDebugResponse(extractedCode, debugContent)
 
       return { success: true, data: response };
     } catch (error: unknown) {
