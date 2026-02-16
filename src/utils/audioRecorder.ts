@@ -20,19 +20,21 @@ export class AudioRecorder implements IAudioRecorder {
    */
   async startRecording(deviceId?: string): Promise<void> {
     try {
-      const audioConstraints: MediaTrackConstraints = {
-        sampleRate: 16000,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      };
-
-      if (deviceId) {
-        audioConstraints.deviceId = { exact: deviceId };
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: audioConstraints
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId
+          ? {
+              sampleRate: 16000,
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              deviceId: { exact: deviceId }
+            }
+          : {
+              sampleRate: 16000,
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true
+            }
       });
       
       this.stream = stream;

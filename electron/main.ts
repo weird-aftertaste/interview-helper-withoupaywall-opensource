@@ -1,4 +1,10 @@
-import { app, BrowserWindow, screen, shell, ipcMain } from "electron"
+import {
+  app,
+  BrowserWindow,
+  screen,
+  shell,
+  type BrowserWindowConstructorOptions,
+} from "electron"
 import path from "path"
 import fs from "fs"
 import { initializeIpcHandlers } from "./ipcHandlers"
@@ -223,7 +229,7 @@ const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on("second-instance", (event, commandLine) => {
+  app.on("second-instance", () => {
     // Someone tried to run a second instance, we should focus our window.
     if (state.mainWindow) {
       if (state.mainWindow.isMinimized()) state.mainWindow.restore()
@@ -251,7 +257,7 @@ async function createWindow(): Promise<void> {
   state.step = 60
   state.currentY = 50
 
-  const windowSettings: Electron.BrowserWindowConstructorOptions = {
+  const windowSettings: BrowserWindowConstructorOptions = {
     width: 800,
     height: 600,
     minWidth: 750,
@@ -314,7 +320,7 @@ async function createWindow(): Promise<void> {
       const indexPath = path.join(__dirname, "../dist/index.html")
       console.log("Falling back to:", indexPath)
       if (fs.existsSync(indexPath)) {
-        state.mainWindow.loadFile(indexPath)
+        state.mainWindow?.loadFile(indexPath)
       } else {
         console.error("Could not find index.html in dist folder")
       }
@@ -434,37 +440,43 @@ function handleWindowClosed(): void {
 
 // Window visibility functions
 function hideMainWindow(): void {
-  if (!state.mainWindow?.isDestroyed()) {
-    const bounds = state.mainWindow.getBounds();
-    state.windowPosition = { x: bounds.x, y: bounds.y };
-    state.windowSize = { width: bounds.width, height: bounds.height };
-    state.mainWindow.setIgnoreMouseEvents(true, { forward: true });
-    state.mainWindow.setOpacity(0);
-    state.isWindowVisible = false;
-    console.log('Window hidden, opacity set to 0');
+  const mainWindow = state.mainWindow
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return
   }
+
+  const bounds = mainWindow.getBounds()
+  state.windowPosition = { x: bounds.x, y: bounds.y }
+  state.windowSize = { width: bounds.width, height: bounds.height }
+  mainWindow.setIgnoreMouseEvents(true, { forward: true })
+  mainWindow.setOpacity(0)
+  state.isWindowVisible = false
+  console.log('Window hidden, opacity set to 0')
 }
 
 function showMainWindow(): void {
-  if (!state.mainWindow?.isDestroyed()) {
-    if (state.windowPosition && state.windowSize) {
-      state.mainWindow.setBounds({
-        ...state.windowPosition,
-        ...state.windowSize
-      });
-    }
-    state.mainWindow.setIgnoreMouseEvents(false);
-    state.mainWindow.setAlwaysOnTop(true, "screen-saver", 1);
-    state.mainWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true
-    });
-    state.mainWindow.setContentProtection(true);
-    state.mainWindow.setOpacity(0); // Set opacity to 0 before showing
-    state.mainWindow.showInactive(); // Use showInactive instead of show+focus
-    state.mainWindow.setOpacity(1); // Then set opacity to 1 after showing
-    state.isWindowVisible = true;
-    console.log('Window shown with showInactive(), opacity set to 1');
+  const mainWindow = state.mainWindow
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return
   }
+
+  if (state.windowPosition && state.windowSize) {
+    mainWindow.setBounds({
+      ...state.windowPosition,
+      ...state.windowSize
+    })
+  }
+  mainWindow.setIgnoreMouseEvents(false)
+  mainWindow.setAlwaysOnTop(true, "screen-saver", 1)
+  mainWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true
+  })
+  mainWindow.setContentProtection(true)
+  mainWindow.setOpacity(0) // Set opacity to 0 before showing
+  mainWindow.showInactive() // Use showInactive instead of show+focus
+  mainWindow.setOpacity(1) // Then set opacity to 1 after showing
+  state.isWindowVisible = true
+  console.log('Window shown with showInactive(), opacity set to 1')
 }
 
 function toggleMainWindow(): void {
@@ -517,19 +529,22 @@ function moveWindowVertical(updateFn: (y: number) => number): void {
 
 // Window dimension functions
 function setWindowDimensions(width: number, height: number): void {
-  if (!state.mainWindow?.isDestroyed()) {
-    const [currentX, currentY] = state.mainWindow.getPosition()
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const workArea = primaryDisplay.workAreaSize
-    const maxWidth = Math.floor(workArea.width * 0.5)
-
-    state.mainWindow.setBounds({
-      x: Math.min(currentX, workArea.width - maxWidth),
-      y: currentY,
-      width: Math.min(width + 32, maxWidth),
-      height: Math.ceil(height)
-    })
+  const mainWindow = state.mainWindow
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return
   }
+
+  const [currentX, currentY] = mainWindow.getPosition()
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const workArea = primaryDisplay.workAreaSize
+  const maxWidth = Math.floor(workArea.width * 0.5)
+
+  mainWindow.setBounds({
+    x: Math.min(currentX, workArea.width - maxWidth),
+    y: currentY,
+    width: Math.min(width + 32, maxWidth),
+    height: Math.ceil(height)
+  })
 }
 
 // Environment setup
@@ -587,9 +602,9 @@ async function initializeApp() {
         ),
       moveWindowUp: () => moveWindowVertical((y) => y - state.step),
       moveWindowDown: () => moveWindowVertical((y) => y + state.step),
-      transcriptionHelper: state.transcriptionHelper,
-      conversationManager: state.conversationManager,
-      answerAssistant: state.answerAssistant
+      transcriptionHelper: state.transcriptionHelper ?? undefined,
+      conversationManager: state.conversationManager ?? undefined,
+      answerAssistant: state.answerAssistant ?? undefined
     })
     await createWindow()
     state.shortcutsHelper?.registerGlobalShortcuts()
@@ -615,6 +630,7 @@ app.on("open-url", (event, url) => {
 
 // Handle second instance (removed auth callback handling)
 app.on("second-instance", (event, commandLine) => {
+  void event
   console.log("second-instance event received:", commandLine)
   
   // Focus or create the main window

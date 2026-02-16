@@ -1,6 +1,7 @@
 // Solutions.tsx
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
+import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
 // Dynamic import for syntax highlighter - loaded only when code is displayed
 // This reduces initial bundle size significantly
 const SyntaxHighlighter = lazy(() => 
@@ -91,17 +92,7 @@ const SolutionSection = ({
             <SyntaxHighlighter
               showLineNumbers
               language={currentLanguage == "golang" ? "go" : currentLanguage}
-              style={(() => {
-                // Dynamically import style to reduce initial bundle size
-                // This will be code-split by Vite
-                try {
-                  // Use dynamic import for better tree-shaking
-                  const styleModule = require("react-syntax-highlighter/dist/esm/styles/prism")
-                  return styleModule.dracula || {}
-                } catch {
-                  return {}
-                }
-              })()}
+              style={dracula}
             customStyle={{
               maxWidth: "100%",
               margin: 0,
@@ -189,6 +180,27 @@ export interface SolutionsProps {
   currentLanguage: string
   setLanguage: (language: string) => void
 }
+
+interface SolutionData {
+  code: string
+  thoughts: string[]
+  time_complexity: string
+  space_complexity: string
+}
+
+interface DebugSolutionData {
+  code: string
+  debug_analysis: string
+  thoughts: string[]
+  time_complexity: string
+  space_complexity: string
+}
+
+interface ScreenshotPreview {
+  path: string
+  preview: string
+}
+
 const Solutions: React.FC<SolutionsProps> = ({
   setView,
   credits,
@@ -318,7 +330,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         setTimeComplexityData(null)
         setSpaceComplexityData(null)
       }),
-      window.electronAPI.onProblemExtracted((data) => {
+      window.electronAPI.onProblemExtracted((data: ProblemStatementData) => {
         queryClient.setQueryData(["problem_statement"], data)
       }),
       //if there was an error processing the initial solution
@@ -341,7 +353,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         console.error("Processing error:", error)
       }),
       //when the initial solution is generated, we'll set the solution data to that
-      window.electronAPI.onSolutionSuccess((data) => {
+      window.electronAPI.onSolutionSuccess((data: SolutionData) => {
         if (!data) {
           console.warn("Received empty or invalid solution data")
           return
@@ -365,7 +377,7 @@ const Solutions: React.FC<SolutionsProps> = ({
           try {
             const existing = await window.electronAPI.getScreenshots()
             const screenshots =
-              existing.previews?.map((p) => ({
+              existing.previews?.map((p: ScreenshotPreview) => ({
                 id: p.path,
                 path: p.path,
                 preview: p.preview,
@@ -388,7 +400,7 @@ const Solutions: React.FC<SolutionsProps> = ({
         setDebugProcessing(true)
       }),
       //the first time debugging works, we'll set the view to debug and populate the cache with the data
-      window.electronAPI.onDebugSuccess((data) => {
+      window.electronAPI.onDebugSuccess((data: DebugSolutionData) => {
         queryClient.setQueryData(["new_solution"], data)
         setDebugProcessing(false)
       }),

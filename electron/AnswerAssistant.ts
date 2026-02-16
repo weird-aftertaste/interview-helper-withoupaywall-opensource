@@ -9,7 +9,6 @@ import * as axios from 'axios';
 import { configHelper, CandidateProfile } from './ConfigHelper';
 import { IConversationManager } from './ConversationManager';
 import {
-  APIProvider,
   DEFAULT_ANSWER_MODELS,
 } from "../shared/aiModels";
 

@@ -1,16 +1,14 @@
 // ProcessingHelper.ts
 import fs from "node:fs"
-import path from "node:path"
 import { ScreenshotHelper } from "./ScreenshotHelper"
 import { IProcessingHelperDeps } from "./main"
 import * as axios from "axios"
-import { app, BrowserWindow, dialog } from "electron"
+import { BrowserWindow } from "electron"
 import { OpenAI } from "openai"
 import { configHelper } from "./ConfigHelper"
 import Anthropic from '@anthropic-ai/sdk';
 import {
   APIProvider,
-  DEFAULT_MODELS,
 } from "../shared/aiModels";
 
 // Interface for Gemini API requests
@@ -35,18 +33,12 @@ interface GeminiResponse {
     finishReason: string;
   }>;
 }
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: Array<{
-    type: 'text' | 'image';
-    text?: string;
-    source?: {
-      type: 'base64';
-      media_type: string;
-      data: string;
-    };
-  }>;
+type ScreenshotPayload = {
+  path: string;
+  preview: string;
+  data: string;
 }
+
 export class ProcessingHelper {
   private deps: IProcessingHelperDeps
   private screenshotHelper: ScreenshotHelper
@@ -90,7 +82,11 @@ export class ProcessingHelper {
 
   constructor(deps: IProcessingHelperDeps) {
     this.deps = deps
-    this.screenshotHelper = deps.getScreenshotHelper()
+    const screenshotHelper = deps.getScreenshotHelper()
+    if (!screenshotHelper) {
+      throw new Error("Screenshot helper is not initialized")
+    }
+    this.screenshotHelper = screenshotHelper
     
     // Initialize AI client based on config
     this.initializeAIClient();
@@ -331,7 +327,9 @@ export class ProcessingHelper {
         )
 
         // Filter out any nulls from failed screenshots
-        const validScreenshots = screenshots.filter(Boolean);
+        const validScreenshots = screenshots.filter(
+          (screenshot): screenshot is ScreenshotPayload => screenshot !== null
+        );
         
         if (validScreenshots.length === 0) {
           throw new Error("Failed to load screenshot data");
@@ -443,7 +441,9 @@ export class ProcessingHelper {
         )
         
         // Filter out any nulls from failed screenshots
-        const validScreenshots = screenshots.filter(Boolean);
+        const validScreenshots = screenshots.filter(
+          (screenshot): screenshot is ScreenshotPayload => screenshot !== null
+        );
         
         if (validScreenshots.length === 0) {
           throw new Error("Failed to load screenshot data for debugging");
@@ -600,7 +600,7 @@ export class ProcessingHelper {
 
         // Parse the response
         try {
-          const responseText = extractionResponse.choices[0].message.content;
+          const responseText = extractionResponse.choices[0].message.content ?? "";
           // Handle when OpenAI might wrap the JSON in markdown code blocks
           const jsonText = responseText.replace(/```json|```/g, '').trim();
           problemInfo = JSON.parse(jsonText);
@@ -875,7 +875,7 @@ For complexity explanations, please be thorough. For example: "Time complexity: 
 Your solution should be efficient, well-commented, and handle edge cases.
 `;
 
-      let responseContent;
+      let responseContent = "";
       
       if (config.apiProvider === "openai") {
         // OpenAI processing
@@ -904,7 +904,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
             : {})
         });
 
-        responseContent = solutionResponse.choices[0].message.content;
+        responseContent = solutionResponse.choices[0].message.content ?? "";
       } else if (config.apiProvider === "gemini")  {
         // Gemini processing
         if (!this.geminiApiKey) {
@@ -946,7 +946,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
             throw new Error("Empty response from Gemini API");
           }
           
-          responseContent = responseData.candidates[0].content.parts[0].text;
+          responseContent = responseData.candidates[0].content.parts[0].text ?? "";
         } catch (error) {
           console.error("Error using Gemini API for solution:", error);
           return {
@@ -1127,7 +1127,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
       // Prepare the images for the API call
       const imageDataList = screenshots.map(screenshot => screenshot.data);
       
-      let debugContent;
+      let debugContent = "";
       
       if (config.apiProvider === "openai") {
         if (!this.openaiClient) {
@@ -1249,7 +1249,7 @@ If you include code examples, use proper markdown code blocks with language spec
             : {})
         });
         
-        debugContent = debugResponse.choices[0].message.content;
+        debugContent = debugResponse.choices[0].message.content ?? "";
       } else if (config.apiProvider === "gemini")  {
         if (!this.geminiApiKey) {
           return {
@@ -1323,7 +1323,7 @@ If you include code examples, use proper markdown code blocks with language spec
             throw new Error("Empty response from Gemini API");
           }
           
-          debugContent = responseData.candidates[0].content.parts[0].text;
+          debugContent = responseData.candidates[0].content.parts[0].text ?? "";
         } catch (error) {
           console.error("Error using Gemini API for debugging:", error);
           return {

@@ -1,7 +1,6 @@
 // ipcHandlers.ts
 
-import { ipcMain, shell, dialog } from "electron"
-import { randomBytes } from "crypto"
+import { ipcMain, shell } from "electron"
 import { IIpcHandlerDeps } from "./main"
 import { configHelper } from "./ConfigHelper"
 
@@ -190,12 +189,7 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
 
   // Auth-related handlers removed
 
-  ipcMain.handle("open-external-url", (event, url: string) => {
-    shell.openExternal(url)
-  })
-  
-  // Open external URL handler
-  ipcMain.handle("openLink", (event, url: string) => {
+  const openExternalUrl = (url: string) => {
     try {
       console.log(`Opening external URL: ${url}`);
       shell.openExternal(url);
@@ -204,7 +198,15 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
       console.error(`Error opening URL ${url}:`, error);
       return { success: false, error: `Failed to open URL: ${error}` };
     }
-  })
+  }
+
+  ipcMain.handle("open-external-url", (_event, url: string) =>
+    openExternalUrl(url)
+  )
+
+  // Open external URL handlers (aliases kept for compatibility)
+  ipcMain.handle("openLink", (_event, url: string) => openExternalUrl(url))
+  ipcMain.handle("openExternal", (_event, url: string) => openExternalUrl(url))
 
   // Settings portal handler
   ipcMain.handle("open-settings-portal", () => {

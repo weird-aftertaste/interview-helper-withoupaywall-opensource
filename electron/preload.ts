@@ -1,10 +1,9 @@
 console.log("Preload script starting...")
-import { contextBridge, ipcRenderer } from "electron"
-const { shell } = require("electron")
+import { contextBridge, ipcRenderer, shell, type IpcRendererEvent } from "electron"
 
 export const PROCESSING_EVENTS = {
   //global states
-  UNAUTHORIZED: "procesing-unauthorized",
+  UNAUTHORIZED: "processing-unauthorized",
   NO_SCREENSHOTS: "processing-no-screenshots",
   OUT_OF_CREDITS: "out-of-credits",
   API_KEY_INVALID: "api-key-invalid",
@@ -81,11 +80,11 @@ const electronAPI = {
     }
   },
   onDebugSuccess: (callback: (data: any) => void) => {
-    ipcRenderer.on("debug-success", (_event, data) => callback(data))
+    const subscription = (_event: IpcRendererEvent, data: any) =>
+      callback(data)
+    ipcRenderer.on("debug-success", subscription)
     return () => {
-      ipcRenderer.removeListener("debug-success", (_event, data) =>
-        callback(data)
-      )
+      ipcRenderer.removeListener("debug-success", subscription)
     }
   },
   onDebugError: (callback: (error: string) => void) => {
@@ -218,7 +217,7 @@ const electronAPI = {
   validateApiKey: (apiKey: string) => 
     ipcRenderer.invoke("validate-api-key", apiKey),
   openExternal: (url: string) => 
-    ipcRenderer.invoke("openExternal", url),
+    shell.openExternal(url),
   onApiKeyInvalid: (callback: () => void) => {
     const subscription = () => callback()
     ipcRenderer.on(PROCESSING_EVENTS.API_KEY_INVALID, subscription)

@@ -31,7 +31,6 @@ export class TranscriptionHelper implements ITranscriptionHelper {
   private readonly defaultOpenAIModel: string = 'whisper-1';
   private readonly defaultGeminiModel: string = 'gemini-3-flash-preview'; // Gemini model with audio understanding support
   private readonly defaultGroqModel: string = 'whisper-large-v3-turbo';
-  private readonly defaultAnthropicModel: string = ''; // To be set when Anthropic speech recognition is available
 
   constructor() {
     this.tempDir = path.join(app.getPath('temp'), 'audio-transcriptions');
@@ -145,11 +144,11 @@ export class TranscriptionHelper implements ITranscriptionHelper {
 
     // Route to the appropriate provider's transcription method
     if (transcriptionProvider === "openai") {
-      return this.transcribeWithOpenAI(audioBuffer, mimeType);
+      return this.transcribeWithOpenAI(audioBuffer);
     } else if (transcriptionProvider === "gemini") {
       return this.transcribeWithGemini(audioBuffer, mimeType);
     } else if (transcriptionProvider === "groq") {
-      return this.transcribeWithGroq(audioBuffer, mimeType);
+      return this.transcribeWithGroq(audioBuffer);
     } else {
       throw new Error(`Unsupported transcription provider: ${transcriptionProvider}`);
     }
@@ -159,8 +158,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Transcribes audio using OpenAI Whisper API
    */
   private async transcribeWithOpenAI(
-    audioBuffer: Buffer,
-    mimeType: string
+    audioBuffer: Buffer
   ): Promise<TranscriptionResult> {
     if (!this.openai) {
       throw new Error('OpenAI client not initialized. Please set OpenAI API key in settings.');
@@ -224,8 +222,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Transcribes audio using Groq Whisper through OpenAI-compatible endpoint
    */
   private async transcribeWithGroq(
-    audioBuffer: Buffer,
-    mimeType: string
+    audioBuffer: Buffer
   ): Promise<TranscriptionResult> {
     if (!this.groqOpenAI) {
       throw new Error('Groq client not initialized. Please set Groq API key in settings.');
@@ -374,10 +371,7 @@ export class TranscriptionHelper implements ITranscriptionHelper {
    * Transcribes audio using Anthropic API (Future implementation)
    * TODO: Implement when Anthropic speech recognition becomes available
    */
-  private async transcribeWithAnthropic(
-    audioBuffer: Buffer,
-    mimeType: string
-  ): Promise<TranscriptionResult> {
+  private async transcribeWithAnthropic(): Promise<TranscriptionResult> {
     if (!this.anthropic) {
       throw new Error('Anthropic client not initialized. Please set Anthropic API key in settings.');
     }

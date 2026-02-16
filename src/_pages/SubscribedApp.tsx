@@ -11,11 +11,11 @@ interface SubscribedAppProps {
   setLanguage: (language: string) => void
 }
 
-const SubscribedApp: React.FC<SubscribedAppProps> = ({
+const SubscribedApp = ({
   credits,
   currentLanguage,
   setLanguage
-}) => {
+}: SubscribedAppProps) => {
   const queryClient = useQueryClient()
   const [view, setView] = useState<"queue" | "solutions" | "debug">("queue")
   const containerRef = useRef<HTMLDivElement>(null)
@@ -119,7 +119,7 @@ const SubscribedApp: React.FC<SubscribedAppProps> = ({
       window.electronAPI.onResetView(() => {
         queryClient.setQueryData(["problem_statement"], null)
       }),
-      window.electronAPI.onProblemExtracted((data: any) => {
+      window.electronAPI.onProblemExtracted((data: unknown) => {
         if (view === "queue") {
           queryClient.invalidateQueries({
             queryKey: ["problem_statement"]
