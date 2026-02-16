@@ -39,7 +39,16 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
 }) => {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
+  const hideTooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { showToast } = useToast()
+
+  useEffect(() => {
+    return () => {
+      if (hideTooltipTimeoutRef.current) {
+        clearTimeout(hideTooltipTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (onTooltipVisibilityChange) {
@@ -52,11 +61,21 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
   }, [isTooltipVisible, onTooltipVisibilityChange])
 
   const handleMouseEnter = () => {
+    if (hideTooltipTimeoutRef.current) {
+      clearTimeout(hideTooltipTimeoutRef.current)
+      hideTooltipTimeoutRef.current = null
+    }
     setIsTooltipVisible(true)
   }
 
   const handleMouseLeave = () => {
-    setIsTooltipVisible(false)
+    if (hideTooltipTimeoutRef.current) {
+      clearTimeout(hideTooltipTimeoutRef.current)
+    }
+    hideTooltipTimeoutRef.current = setTimeout(() => {
+      setIsTooltipVisible(false)
+      hideTooltipTimeoutRef.current = null
+    }, 180)
   }
 
   return (
@@ -227,7 +246,11 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
               >
                 {/* Add transparent bridge */}
                 <div className="absolute -top-2 right-0 w-full h-2" />
-                <div className="p-3 text-xs bg-black/80 backdrop-blur-md rounded-lg border border-white/10 text-white/90 shadow-lg">
+                <div
+                  className="p-3 text-xs bg-black/80 backdrop-blur-md rounded-lg border border-white/10 text-white/90 shadow-lg"
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                >
                   <div className="space-y-4">
                     <h3 className="font-medium whitespace-nowrap">
                       Keyboard Shortcuts
