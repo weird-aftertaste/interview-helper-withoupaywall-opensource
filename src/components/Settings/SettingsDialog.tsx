@@ -306,7 +306,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   />
                   <div className="flex flex-col">
                     <p className="font-medium text-white text-sm">Gemini</p>
-                    <p className="text-xs text-white/60">Gemini 3 models</p>
+                    <p className="text-xs text-white/60">Gemini models</p>
                   </div>
                 </div>
               </div>
@@ -326,7 +326,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                   />
                   <div className="flex flex-col">
                     <p className="font-medium text-white text-sm">Claude</p>
-                    <p className="text-xs text-white/60">Claude 3 models</p>
+                    <p className="text-xs text-white/60">Claude models</p>
                   </div>
                 </div>
               </div>
@@ -623,8 +623,8 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 {[
                   { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash", desc: "Fast and efficient audio understanding" },
                   { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", desc: "Higher accuracy audio understanding" },
-                  { id: "gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)", desc: "Latest preview model with audio understanding" },
-                  { id: "gemini-3-pro-preview", label: "Gemini 3 Pro (Preview)", desc: "Best accuracy with audio understanding" },
+                  { id: "gemini-3-flash-preview", label: "Gemini Flash (Preview)", desc: "Latest preview model with audio understanding" },
+                  { id: "gemini-3-pro-preview", label: "Gemini Pro (Preview)", desc: "Best accuracy with audio understanding" },
                 ].map((model) => (
                   <div
                     key={model.id}

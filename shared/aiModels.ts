@@ -98,7 +98,7 @@ export const ALLOWED_MODELS: Record<APIProvider, string[]> = {
     "gpt-4o-mini",
   ],
   gemini: [
-    // Current Gemini 3 models (preview)
+    // Current Gemini models (preview)
     "gemini-3-pro-preview",
     "gemini-3-flash-preview",
     "gemini-3-pro-image-preview",
@@ -154,39 +154,39 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
       gemini: [
         {
           id: "gemini-3-pro-preview",
-          name: "Gemini 3 Pro (Preview)",
+          name: "Gemini Pro (Preview)",
           description: "Best overall performance for complex tasks requiring advanced reasoning",
         },
         {
           id: "gemini-3-flash-preview",
-          name: "Gemini 3 Flash (Preview)",
+          name: "Gemini Flash (Preview)",
           description: "Pro-level intelligence at Flash speed and pricing",
         },
         {
           id: "gemini-1.5-pro",
           name: "Gemini 1.5 Pro",
-          description: "Legacy model - use Gemini 3 for best results",
+          description: "Legacy model - use Gemini Pro for best results",
         },
         {
           id: "gemini-1.5-flash",
           name: "Gemini 1.5 Flash",
-          description: "Legacy model - use Gemini 3 Flash for best results",
+          description: "Legacy model - use Gemini Flash for best results",
         },
       ],
       anthropic: [
         {
           id: "claude-3-7-sonnet-20250219",
-          name: "Claude 3.7 Sonnet",
+          name: "Claude Sonnet 3.7",
           description: "Best overall performance for problem extraction",
         },
         {
           id: "claude-3-5-sonnet-20241022",
-          name: "Claude 3.5 Sonnet",
+          name: "Claude Sonnet 3.5",
           description: "Balanced performance and speed",
         },
         {
           id: "claude-3-opus-20240229",
-          name: "Claude 3 Opus",
+          name: "Claude Opus",
           description:
             "Top-level intelligence, fluency, and understanding",
         },
@@ -228,44 +228,44 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
       gemini: [
         {
           id: "gemini-3-pro-latest",
-          name: "Gemini 3 Pro (Latest)",
+          name: "Gemini Pro (Latest)",
           description: "Strong overall performance - latest version",
         },
         {
           id: "gemini-3-flash-latest",
-          name: "Gemini 3 Flash (Latest)",
+          name: "Gemini Flash (Latest)",
           description: "Faster, more cost-effective - latest version",
         },
         {
           id: "gemini-3-pro",
-          name: "Gemini 3 Pro",
+          name: "Gemini Pro",
           description: "Stable version",
         },
         {
           id: "gemini-3-flash",
-          name: "Gemini 3 Flash",
+          name: "Gemini Flash",
           description: "Stable version",
         },
         {
           id: "gemini-1.5-pro",
           name: "Gemini 1.5 Pro",
-          description: "Legacy model - use Gemini 3 for best results",
+          description: "Legacy model - use Gemini Pro for best results",
         },
       ],
       anthropic: [
         {
           id: "claude-3-7-sonnet-20250219",
-          name: "Claude 3.7 Sonnet",
+          name: "Claude Sonnet 3.7",
           description: "Strong overall performance for coding tasks",
         },
         {
           id: "claude-3-5-sonnet-20241022",
-          name: "Claude 3.5 Sonnet",
+          name: "Claude Sonnet 3.5",
           description: "Balanced performance and speed",
         },
         {
           id: "claude-3-opus-20240229",
-          name: "Claude 3 Opus",
+          name: "Claude Opus",
           description:
             "Top-level intelligence, fluency, and understanding",
         },
@@ -307,45 +307,45 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
       gemini: [
         {
           id: "gemini-3-pro-latest",
-          name: "Gemini 3 Pro (Latest)",
+          name: "Gemini Pro (Latest)",
           description:
             "Best for analyzing code and error messages - latest version",
         },
         {
           id: "gemini-3-flash-latest",
-          name: "Gemini 3 Flash (Latest)",
+          name: "Gemini Flash (Latest)",
           description: "Faster, more cost-effective - latest version",
         },
         {
           id: "gemini-3-pro",
-          name: "Gemini 3 Pro",
+          name: "Gemini Pro",
           description: "Stable version",
         },
         {
           id: "gemini-3-flash",
-          name: "Gemini 3 Flash",
+          name: "Gemini Flash",
           description: "Stable version",
         },
         {
           id: "gemini-1.5-pro",
           name: "Gemini 1.5 Pro",
-          description: "Legacy model - use Gemini 3 for best results",
+          description: "Legacy model - use Gemini Pro for best results",
         },
       ],
       anthropic: [
         {
           id: "claude-3-7-sonnet-20250219",
-          name: "Claude 3.7 Sonnet",
+          name: "Claude Sonnet 3.7",
           description: "Best for analyzing code and error messages",
         },
         {
           id: "claude-3-5-sonnet-20241022",
-          name: "Claude 3.5 Sonnet",
+          name: "Claude Sonnet 3.5",
           description: "Balanced performance and speed",
         },
         {
           id: "claude-3-opus-20240229",
-          name: "Claude 3 Opus",
+          name: "Claude Opus",
           description:
             "Top-level intelligence, fluency, and understanding",
         },
@@ -387,39 +387,39 @@ export const MODEL_CATEGORIES: ModelCategoryDefinition[] = [
       gemini: [
         {
           id: "gemini-3-flash-preview",
-          name: "Gemini 3 Flash (Preview)",
+          name: "Gemini Flash (Preview)",
           description: "Fast and efficient for conversation suggestions",
         },
         {
           id: "gemini-3-pro-preview",
-          name: "Gemini 3 Pro (Preview)",
+          name: "Gemini Pro (Preview)",
           description: "Best performance for complex conversation contexts",
         },
         {
           id: "gemini-1.5-pro",
           name: "Gemini 1.5 Pro",
-          description: "Legacy model - use Gemini 3 for best results",
+          description: "Legacy model - use Gemini Pro for best results",
         },
         {
           id: "gemini-1.5-flash",
           name: "Gemini 1.5 Flash",
-          description: "Legacy model - use Gemini 3 Flash for best results",
+          description: "Legacy model - use Gemini Flash for best results",
         },
       ],
       anthropic: [
         {
           id: "claude-3-7-sonnet-20250219",
-          name: "Claude 3.7 Sonnet",
+          name: "Claude Sonnet 3.7",
           description: "Best overall performance for answer suggestions",
         },
         {
           id: "claude-3-5-sonnet-20241022",
-          name: "Claude 3.5 Sonnet",
+          name: "Claude Sonnet 3.5",
           description: "Balanced performance and speed",
         },
         {
           id: "claude-3-opus-20240229",
-          name: "Claude 3 Opus",
+          name: "Claude Opus",
           description:
             "Top-level intelligence, fluency, and understanding",
         },
