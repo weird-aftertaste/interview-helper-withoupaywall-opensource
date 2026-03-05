@@ -102,8 +102,6 @@ const Debug: React.FC<DebugProps> = ({
   currentLanguage,
   setLanguage
 }) => {
-  const [tooltipVisible, setTooltipVisible] = useState(false)
-  const [tooltipHeight, setTooltipHeight] = useState(0)
   const { showToast } = useToast()
 
   const { data: screenshots = [], refetch } = useQuery<Screenshot[]>({
@@ -225,11 +223,8 @@ const Debug: React.FC<DebugProps> = ({
     // Set up resize observer
     const updateDimensions = () => {
       if (contentRef.current) {
-        let contentHeight = contentRef.current.scrollHeight
+        const contentHeight = contentRef.current.scrollHeight
         const contentWidth = contentRef.current.scrollWidth
-        if (tooltipVisible) {
-          contentHeight += tooltipHeight
-        }
         window.electronAPI.updateContentDimensions({
           width: contentWidth,
           height: contentHeight
@@ -248,11 +243,6 @@ const Debug: React.FC<DebugProps> = ({
       cleanupFunctions.forEach((cleanup) => cleanup())
     }
   }, [queryClient, setIsProcessing])
-
-  const handleTooltipVisibilityChange = (visible: boolean, height: number) => {
-    setTooltipVisible(visible)
-    setTooltipHeight(height)
-  }
 
   const handleDeleteExtraScreenshot = async (index: number) => {
     const screenshotToDelete = screenshots[index]
@@ -291,7 +281,6 @@ const Debug: React.FC<DebugProps> = ({
       {/* Navbar of commands with the tooltip */}
       <SolutionCommands
         screenshots={screenshots}
-        onTooltipVisibilityChange={handleTooltipVisibilityChange}
         isProcessing={isProcessing}
         extraScreenshots={screenshots}
         credits={window.__CREDITS__}

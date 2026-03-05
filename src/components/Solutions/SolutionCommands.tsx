@@ -7,7 +7,6 @@ import { LanguageSelector } from "../shared/LanguageSelector"
 import { COMMAND_KEY } from "../../utils/platform"
 
 export interface SolutionCommandsProps {
-  onTooltipVisibilityChange: (visible: boolean, height: number) => void
   isProcessing: boolean
   screenshots?: Screenshot[]
   extraScreenshots?: Screenshot[]
@@ -31,7 +30,6 @@ const handleSignOut = async () => {
 }
 
 const SolutionCommands: React.FC<SolutionCommandsProps> = ({
-  onTooltipVisibilityChange,
   isProcessing,
   extraScreenshots = [],
   currentLanguage,
@@ -49,16 +47,6 @@ const SolutionCommands: React.FC<SolutionCommandsProps> = ({
       }
     }
   }, [])
-
-  useEffect(() => {
-    if (onTooltipVisibilityChange) {
-      let tooltipHeight = 0
-      if (tooltipRef.current && isTooltipVisible) {
-        tooltipHeight = tooltipRef.current.offsetHeight + 10 // Adjust if necessary
-      }
-      onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
-    }
-  }, [isTooltipVisible, onTooltipVisibilityChange])
 
   const handleMouseEnter = () => {
     if (hideTooltipTimeoutRef.current) {

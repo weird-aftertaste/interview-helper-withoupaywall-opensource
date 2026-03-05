@@ -222,9 +222,6 @@ const Solutions: React.FC<SolutionsProps> = ({
     null
   )
 
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false)
-  const [tooltipHeight, setTooltipHeight] = useState(0)
-
   const [isResetting, setIsResetting] = useState(false)
 
   interface Screenshot {
@@ -266,11 +263,8 @@ const Solutions: React.FC<SolutionsProps> = ({
     // Height update logic
     const updateDimensions = () => {
       if (contentRef.current) {
-        let contentHeight = contentRef.current.scrollHeight
+        const contentHeight = contentRef.current.scrollHeight
         const contentWidth = contentRef.current.scrollWidth
-        if (isTooltipVisible) {
-          contentHeight += tooltipHeight
-        }
         window.electronAPI.updateContentDimensions({
           width: contentWidth,
           height: contentHeight
@@ -426,7 +420,7 @@ const Solutions: React.FC<SolutionsProps> = ({
       resizeObserver.disconnect()
       cleanupFunctions.forEach((cleanup) => cleanup())
     }
-  }, [isTooltipVisible, tooltipHeight])
+  }, [])
 
   useEffect(() => {
     setProblemStatementData(
@@ -456,11 +450,6 @@ const Solutions: React.FC<SolutionsProps> = ({
     })
     return () => unsubscribe()
   }, [queryClient])
-
-  const handleTooltipVisibilityChange = (visible: boolean, height: number) => {
-    setIsTooltipVisible(visible)
-    setTooltipHeight(height)
-  }
 
   const handleDeleteExtraScreenshot = async (index: number) => {
     const screenshotToDelete = extraScreenshots[index]
@@ -521,7 +510,6 @@ const Solutions: React.FC<SolutionsProps> = ({
 
           {/* Navbar of commands with the SolutionsHelper */}
           <SolutionCommands
-            onTooltipVisibilityChange={handleTooltipVisibilityChange}
             isProcessing={!problemStatementData || !solutionData}
             extraScreenshots={extraScreenshots}
             credits={credits}

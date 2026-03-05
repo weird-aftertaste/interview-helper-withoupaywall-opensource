@@ -6,7 +6,6 @@ import { LanguageSelector } from "../shared/LanguageSelector"
 import { COMMAND_KEY } from "../../utils/platform"
 
 interface QueueCommandsProps {
-  onTooltipVisibilityChange: (visible: boolean, height: number) => void
   screenshotCount?: number
   credits: number
   currentLanguage: string
@@ -14,7 +13,6 @@ interface QueueCommandsProps {
 }
 
 const QueueCommands: React.FC<QueueCommandsProps> = ({
-  onTooltipVisibilityChange,
   screenshotCount = 0,
   credits,
   currentLanguage,
@@ -32,14 +30,6 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
       }
     }
   }, [])
-
-  useEffect(() => {
-    let tooltipHeight = 0
-    if (tooltipRef.current && isTooltipVisible) {
-      tooltipHeight = tooltipRef.current.offsetHeight + 10
-    }
-    onTooltipVisibilityChange(isTooltipVisible, tooltipHeight)
-  }, [isTooltipVisible])
 
   const handleSignOut = async () => {
     try {

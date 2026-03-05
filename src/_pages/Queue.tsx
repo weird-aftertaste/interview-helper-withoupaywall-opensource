@@ -32,8 +32,6 @@ const Queue: React.FC<QueueProps> = ({
 }) => {
   const { showToast } = useToast()
 
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false)
-  const [tooltipHeight, setTooltipHeight] = useState(0)
   const contentRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -70,11 +68,8 @@ const Queue: React.FC<QueueProps> = ({
     // Height update logic
     const updateDimensions = () => {
       if (contentRef.current) {
-        let contentHeight = contentRef.current.scrollHeight
+        const contentHeight = contentRef.current.scrollHeight
         const contentWidth = contentRef.current.scrollWidth
-        if (isTooltipVisible) {
-          contentHeight += tooltipHeight
-        }
         window.electronAPI.updateContentDimensions({
           width: contentWidth,
           height: contentHeight
@@ -124,12 +119,7 @@ const Queue: React.FC<QueueProps> = ({
       resizeObserver.disconnect()
       cleanupFunctions.forEach((cleanup) => cleanup())
     }
-  }, [isTooltipVisible, tooltipHeight, screenshots])
-
-  const handleTooltipVisibilityChange = (visible: boolean, height: number) => {
-    setIsTooltipVisible(visible)
-    setTooltipHeight(height)
-  }
+  }, [screenshots])
 
   return (
     <div ref={contentRef} className={`bg-transparent w-full`}>
@@ -147,7 +137,6 @@ const Queue: React.FC<QueueProps> = ({
           />
 
           <QueueCommands
-            onTooltipVisibilityChange={handleTooltipVisibilityChange}
             screenshotCount={screenshots.length}
             credits={credits}
             currentLanguage={currentLanguage}
