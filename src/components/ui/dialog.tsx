@@ -34,7 +34,7 @@ const DialogContent = React.forwardRef<
         "fixed z-50 top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2",
         "w-[90vw] max-w-md md:w-full",
         "bg-white p-4 rounded-lg shadow-lg",
-        "focus:outline-none focus-visible:ring-0",
+        "focus:outline-none focus-visible:ring-0 pretty-scrollbar",
         className
       )}
       style={{ maxHeight: '90vh', overflow: 'auto' }}

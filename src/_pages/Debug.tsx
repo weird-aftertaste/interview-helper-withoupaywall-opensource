@@ -332,7 +332,7 @@ const Debug: React.FC<DebugProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="w-full bg-black/30 rounded-md p-4 text-[13px] leading-[1.4] text-gray-100 whitespace-pre-wrap overflow-auto max-h-[600px]">
+                <div className="pretty-scrollbar w-full bg-black/30 rounded-md p-4 text-[13px] leading-[1.4] text-gray-100 whitespace-pre-wrap overflow-auto max-h-[600px]">
                   {/* Process the debug analysis text by sections and lines */}
                   {(() => {
                     // First identify key sections based on common patterns in the debug output
