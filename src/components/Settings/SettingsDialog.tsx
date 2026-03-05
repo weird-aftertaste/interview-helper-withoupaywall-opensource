@@ -230,6 +230,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent 
         className="sm:max-w-md bg-black border border-white/10 text-white settings-dialog"
+        overlayClassName="bg-transparent"
         style={{
           position: 'fixed',
           top: '50%',
