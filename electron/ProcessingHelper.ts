@@ -516,51 +516,24 @@ export class ProcessingHelper {
         // Use OpenAI for processing
         const { systemPrompt, userPrompt } = extractionPrompt
         
-        const useCustomEndpointFormat = !!config.openaiBaseUrl?.trim();
-
-        const messages = useCustomEndpointFormat
-          ? [
-              {
-                role: "system" as const,
-                content: [
-                  {
-                    type: "input_text" as const,
-                    text: systemPrompt,
-                  },
-                ],
-              },
-              {
-                role: "user" as const,
-                content: [
-                  {
-                    type: "input_text" as const,
-                    text: userPrompt,
-                  },
-                  ...imageDataList.map((data) => ({
-                    type: "input_image" as const,
-                    image_url: `data:image/png;base64,${data}`,
-                  })),
-                ],
-              },
-            ]
-          : [
+        const messages = [
           {
-            role: "system" as const, 
-            content: systemPrompt
+            role: "system" as const,
+            content: systemPrompt,
           },
           {
             role: "user" as const,
             content: [
               {
-                type: "text" as const, 
-                text: userPrompt
+                type: "text" as const,
+                text: userPrompt,
               },
-              ...imageDataList.map(data => ({
+              ...imageDataList.map((data) => ({
                 type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
+                image_url: { url: `data:image/png;base64,${data}` },
+              })),
+            ],
+          },
         ];
 
         // Send to OpenAI Vision API
@@ -1123,51 +1096,24 @@ export class ProcessingHelper {
           };
         }
         
-        const useCustomEndpointFormat = !!config.openaiBaseUrl?.trim();
-
-        const messages = useCustomEndpointFormat
-          ? [
-              {
-                role: "system" as const,
-                content: [
-                  {
-                    type: "input_text" as const,
-                    text: debugPromptBundle.systemPrompt,
-                  },
-                ],
-              },
-              {
-                role: "user" as const,
-                content: [
-                  {
-                    type: "input_text" as const,
-                    text: debugPromptBundle.userPrompt,
-                  },
-                  ...imageDataList.map((data) => ({
-                    type: "input_image" as const,
-                    image_url: `data:image/png;base64,${data}`,
-                  })),
-                ],
-              },
-            ]
-          : [
+        const messages = [
           {
-            role: "system" as const, 
-            content: debugPromptBundle.systemPrompt
+            role: "system" as const,
+            content: debugPromptBundle.systemPrompt,
           },
           {
             role: "user" as const,
             content: [
               {
-                type: "text" as const, 
-                text: debugPromptBundle.userPrompt
+                type: "text" as const,
+                text: debugPromptBundle.userPrompt,
               },
-              ...imageDataList.map(data => ({
+              ...imageDataList.map((data) => ({
                 type: "image_url" as const,
-                image_url: { url: `data:image/png;base64,${data}` }
-              }))
-            ]
-          }
+                image_url: { url: `data:image/png;base64,${data}` },
+              })),
+            ],
+          },
         ];
 
         if (mainWindow) {
