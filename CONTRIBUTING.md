@@ -14,15 +14,15 @@ We're building a supportive and inclusive environment based on the following pri
 
 ### 1. Fork the Repository
 
-- Visit the repository at [github.com/Ornithopter-pilot/interview-coder-withoupaywall-opensource](https://github.com/Ornithopter-pilot/interview-coder-withoupaywall-opensource).
+- Visit the repository at [github.com/weird-aftertaste/interview-helper-withoupaywall-opensource](https://github.com/weird-aftertaste/interview-helper-withoupaywall-opensource).
 - Click the "Fork" button to create your own copy.
 - Clone your fork locally:
   ```bash
-  git clone https://github.com/YOUR-USERNAME/interview-coder-withoupaywall-opensource.git
+  git clone https://github.com/YOUR-USERNAME/interview-helper-withoupaywall-opensource.git
   ```
 - Set up the upstream remote to sync with the original:
   ```bash
-  git remote add upstream https://github.com/Ornithopter-pilot/interview-coder-withoupaywall-opensource.git
+  git remote add upstream https://github.com/weird-aftertaste/interview-helper-withoupaywall-opensource.git
   ```
 
 ### 2. Create a Branch

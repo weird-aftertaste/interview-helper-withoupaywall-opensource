@@ -126,8 +126,8 @@ Note: The application is **NOT** invisible to:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/greeneu/interview-coder-withoupaywall-opensource.git
-cd interview-coder-withoupaywall-opensource
+git clone https://github.com/weird-aftertaste/interview-helper-withoupaywall-opensource.git
+cd interview-helper-withoupaywall-opensource
 ```
 
 2. Install dependencies:
@@ -369,7 +369,9 @@ Remember that the purpose of technical interviews is to assess your problem-solv
 
 ## Support and Questions
 
-If you have questions or need support, please open an issue on the GitHub repository.
+If you have questions or need support, please open an issue on the GitHub repository:
+
+- https://github.com/weird-aftertaste/interview-helper-withoupaywall-opensource/issues
 
 ---
 
