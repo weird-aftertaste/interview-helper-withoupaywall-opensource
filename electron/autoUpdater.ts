@@ -16,8 +16,9 @@ export function initAutoUpdater() {
   }
 
   if (!process.env.GH_TOKEN) {
-    console.error("GH_TOKEN environment variable is not set")
-    return
+    console.warn(
+      "GH_TOKEN is not set; continuing with unauthenticated GitHub update checks"
+    )
   }
 
   // Configure auto updater

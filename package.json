@@ -1,6 +1,6 @@
 {
   "name": "interview-coder-v1",
-  "version": "1.0.19",
+  "version": "1.5.0",
   "main": "./dist-electron/main.js",
   "scripts": {
     "clean": "npx rimraf dist dist-electron",
@@ -95,8 +95,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "ibttf",
-        "repo": "interview-coder",
+        "owner": "weird-aftertaste",
+        "repo": "interview-helper-withoupaywall-opensource",
         "private": false,
         "releaseType": "release"
       }
