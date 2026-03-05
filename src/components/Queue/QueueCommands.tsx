@@ -72,6 +72,15 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
     }, 180)
   }
 
+  const handleOpenSettings = async () => {
+    if (hideTooltipTimeoutRef.current) {
+      clearTimeout(hideTooltipTimeoutRef.current)
+      hideTooltipTimeoutRef.current = null
+    }
+    setIsTooltipVisible(false)
+    await window.electronAPI.openSettingsPortal()
+  }
+
   return (
     <div>
       <div className="pt-2 w-fit">
@@ -464,7 +473,9 @@ const QueueCommands: React.FC<QueueCommandsProps> = ({
                           <span>OpenAI API Settings</span>
                           <button
                             className="bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-[11px]"
-                            onClick={() => window.electronAPI.openSettingsPortal()}
+                            onClick={() => {
+                              void handleOpenSettings()
+                            }}
                           >
                             Settings
                           </button>
