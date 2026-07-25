@@ -52,6 +52,19 @@ export interface ConversationMessage {
   edited?: boolean
 }
 
+export interface FollowUpMessage {
+  role: "user" | "assistant"
+  content: string
+}
+
+export interface FollowUpRequest {
+  question: string
+  history?: FollowUpMessage[]
+  problemStatement?: string
+  currentAnswer?: string
+  workflow?: "coding" | "biotech"
+}
+
 export interface ElectronAPI {
   openSubscriptionPortal: (authData: {
     id: string
@@ -121,6 +134,7 @@ export interface ElectronAPI {
   updateConversationMessage: (messageId: string, newText: string) => Promise<{ success: boolean; error?: string }>
   getAnswerSuggestions: (question: string, screenshotContext?: string, candidateProfile?: unknown) => Promise<{ success: boolean; suggestions?: { suggestions: string[]; reasoning: string }; error?: string }>
   onConversationMessageAdded: (callback: (message: ConversationMessage) => void) => () => void
+  askFollowUp: (request: FollowUpRequest) => Promise<{ success: boolean; answer?: string; error?: string }>
   onSpeakerChanged: (callback: (speaker: ConversationMessage["speaker"]) => void) => () => void
   onConversationMessageUpdated: (callback: (message: ConversationMessage) => void) => () => void
   onConversationCleared: (callback: () => void) => () => void

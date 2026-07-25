@@ -169,6 +169,7 @@ describe("initializeIpcHandlers", () => {
     expect(harness.handlers.has("get-screenshots")).toBe(true)
     expect(harness.handlers.has("trigger-process-screenshots")).toBe(true)
     expect(harness.handlers.has("add-conversation-message")).toBe(true)
+    expect(harness.handlers.has("ask-follow-up")).toBe(true)
     expect(harness.handlers.has("open-external-url")).toBe(true)
     expect(harness.handlers.has("openLink")).toBe(true)
     expect(harness.handlers.has("openExternal")).toBe(true)

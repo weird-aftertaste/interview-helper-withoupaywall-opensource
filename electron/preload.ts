@@ -298,6 +298,13 @@ const electronAPI = {
   getAnswerSuggestions: (question: string, screenshotContext?: string, candidateProfile?: CandidateProfile) =>
     ipcRenderer.invoke("get-answer-suggestions", question, screenshotContext, candidateProfile),
   
+  askFollowUp: (request: {
+    question: string
+    history?: Array<{ role: "user" | "assistant"; content: string }>
+    problemStatement?: string
+    currentAnswer?: string
+    workflow?: Workflow
+  }) => ipcRenderer.invoke("ask-follow-up", request),
   // Event listeners
   onConversationMessageAdded: (callback: (message: ConversationMessage) => void) => {
     const subscription = (_event: IpcRendererEvent, message: ConversationMessage) => callback(message)

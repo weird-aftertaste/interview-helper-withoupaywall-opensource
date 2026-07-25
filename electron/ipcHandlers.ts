@@ -486,6 +486,83 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     }
   })
 
+  ipcMain.handle("ask-follow-up", async (_event, request: unknown) => {
+    try {
+      if (!deps.answerAssistant || !deps.conversationManager) {
+        return { success: false, error: "Answer assistant or conversation manager not initialized" };
+      }
+
+      if (!request || typeof request !== "object") {
+        return { success: false, error: "Invalid follow-up request" };
+      }
+
+      const payload = request as {
+        question?: unknown
+        history?: unknown
+        problemStatement?: unknown
+        currentAnswer?: unknown
+        workflow?: unknown
+      }
+      const question =
+        typeof payload.question === "string"
+          ? payload.question.trim().slice(0, 4000)
+          : ""
+
+      if (!question) {
+        return { success: false, error: "Follow-up question cannot be empty" };
+      }
+
+      const history = (Array.isArray(payload.history) ? payload.history : [])
+        .filter(
+          (message): message is { role: "user" | "assistant"; content: string } =>
+            Boolean(
+              message &&
+                typeof message === "object" &&
+                ("role" in message) &&
+                (message.role === "user" || message.role === "assistant") &&
+                ("content" in message) &&
+                typeof message.content === "string"
+            )
+        )
+        .slice(-12)
+        .map(
+          (message) =>
+            `${message.role === "user" ? "Candidate" : "Assistant"}: ${message.content.trim().slice(0, 4000)}`
+        )
+        .join("\n\n")
+      const problemStatement =
+        typeof payload.problemStatement === "string"
+          ? payload.problemStatement.trim().slice(0, 8000)
+          : ""
+      const currentAnswer =
+        typeof payload.currentAnswer === "string"
+          ? payload.currentAnswer.trim().slice(0, 12000)
+          : ""
+      const workflow = payload.workflow === "biotech" ? "biotech" : "coding"
+      const context = `Workflow: ${workflow}
+
+Current task:
+${problemStatement || "No task text available."}
+
+Current generated answer:
+${currentAnswer || "No generated answer available."}
+
+Previous follow-up messages:
+${history || "No follow-up messages yet."}`
+      const suggestions = await deps.answerAssistant.generateAnswerSuggestions(
+        `Answer this follow-up question directly and concisely: ${question}`,
+        deps.conversationManager,
+        context
+      )
+      const answer = suggestions.suggestions.join("\n\n")
+
+      return { success: true, answer };
+    } catch (error: unknown) {
+      console.error("Error generating follow-up answer:", error);
+      return { success: false, error: getErrorMessage(error, "Failed to generate follow-up answer") };
+    }
+  })
+
   // Event listeners for conversation events
   if (deps.conversationManager) {
     deps.conversationManager.on('message-added', (message) => {

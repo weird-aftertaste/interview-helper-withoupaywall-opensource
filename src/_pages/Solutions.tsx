@@ -18,6 +18,7 @@ import Debug from "./Debug"
 import { useToast } from "../contexts/toast"
 import { COMMAND_KEY } from "../utils/platform"
 import { ConversationSection } from "../components/Conversation/ConversationSection"
+import { FollowUpChat } from "../components/FollowUp/FollowUpChat"
 
 export const ContentSection = ({
   title,
@@ -628,6 +629,12 @@ const Solutions: React.FC<SolutionsProps> = ({
                         isLoading={!timeComplexityData || !spaceComplexityData}
                       />
                     )}
+
+                    <FollowUpChat
+                      problemStatement={problemStatementData?.problem_statement}
+                      currentAnswer={solutionData}
+                      workflow={workflow}
+                    />
                   </>
                 )}
               </div>
