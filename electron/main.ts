@@ -542,21 +542,16 @@ function setWindowDimensions(width: number, height: number): void {
     return
   }
 
-  const currentBounds = mainWindow.getBounds()
-  const display = screen.getDisplayMatching(currentBounds)
-  const workArea = display.workArea
+  const [currentX, currentY] = mainWindow.getPosition()
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const workArea = primaryDisplay.workAreaSize
   const maxWidth = Math.floor(workArea.width * 0.5)
-  const maxHeight = Math.max(550, workArea.height - 16)
-  const targetWidth = Math.min(Math.ceil(width + 32), maxWidth)
-  const targetHeight = Math.min(Math.ceil(height), maxHeight)
-  const maxX = workArea.x + workArea.width - targetWidth
-  const maxY = workArea.y + workArea.height - targetHeight
 
   mainWindow.setBounds({
-    x: Math.min(Math.max(currentBounds.x, workArea.x), maxX),
-    y: Math.min(Math.max(currentBounds.y, workArea.y), maxY),
-    width: targetWidth,
-    height: targetHeight
+    x: Math.min(currentX, workArea.width - maxWidth),
+    y: currentY,
+    width: Math.min(width + 32, maxWidth),
+    height: Math.ceil(height)
   })
 }
 
