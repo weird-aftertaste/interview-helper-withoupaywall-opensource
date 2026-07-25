@@ -39,6 +39,7 @@ interface Config {
   language: string;
   workflow: Workflow;
   opacity: number;
+  zoomFactor: number;
   candidateProfile?: CandidateProfile;  // Candidate profile for personalized AI suggestions
 }
 
@@ -74,6 +75,7 @@ export class ConfigHelper extends EventEmitter {
     language: "python",
     workflow: DEFAULT_WORKFLOW,
     opacity: 1.0,
+    zoomFactor: 1.0,
     candidateProfile: {
       name: "",
       resume: "",
@@ -167,6 +169,11 @@ export class ConfigHelper extends EventEmitter {
         if (!isWorkflow(config.workflow)) {
           config.workflow = DEFAULT_WORKFLOW;
         }
+
+        config.zoomFactor =
+          typeof config.zoomFactor === "number"
+            ? Math.min(1.4, Math.max(0.6, config.zoomFactor))
+            : 1.0;
 
         // Ensure transcriptionProvider is valid
         if (
@@ -299,6 +306,9 @@ export class ConfigHelper extends EventEmitter {
       }
       if (typeof updates.answerSystemPrompt === "string") {
         updates.answerSystemPrompt = updates.answerSystemPrompt.trim();
+      }
+      if (typeof updates.zoomFactor === "number") {
+        updates.zoomFactor = Math.min(1.4, Math.max(0.6, updates.zoomFactor));
       }
 
       // Validate transcription provider
@@ -462,6 +472,17 @@ export class ConfigHelper extends EventEmitter {
     this.updateConfig({ opacity: validOpacity });
   }  
   
+
+  public getZoomFactor(): number {
+    return this.loadConfig().zoomFactor;
+  }
+
+  public setZoomFactor(zoomFactor: number): number {
+    const validZoomFactor = Math.min(1.4, Math.max(0.6, zoomFactor));
+    this.updateConfig({ zoomFactor: validZoomFactor });
+    return validZoomFactor;
+  }
+
   /**
    * Get the preferred programming language
    */

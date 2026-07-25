@@ -31,7 +31,24 @@ export class ShortcutsHelper {
     // If we're making the window visible, also make sure it's shown and interaction is enabled
     if (newOpacity > 0.1 && !this.deps.isVisible()) {
       this.deps.toggleMainWindow();
+
+
     }
+  }
+
+  private setZoomFactor(requestedFactor: number): void {
+    const mainWindow = this.deps.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) return
+
+    const zoomFactor = configHelper.setZoomFactor(requestedFactor)
+    mainWindow.webContents.setZoomFactor(zoomFactor)
+    mainWindow.webContents.send("interface-scale-changed", zoomFactor)
+  }
+
+  private adjustZoomFactor(delta: number): void {
+    const mainWindow = this.deps.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    this.setZoomFactor(mainWindow.webContents.getZoomFactor() + delta)
   }
 
   public registerGlobalShortcuts(): void {
@@ -158,28 +175,17 @@ export class ShortcutsHelper {
     // Zoom controls
     globalShortcut.register("CommandOrControl+-", () => {
       console.log("Command/Ctrl + - pressed. Zooming out.")
-      const mainWindow = this.deps.getMainWindow()
-      if (mainWindow) {
-        const currentZoom = mainWindow.webContents.getZoomLevel()
-        mainWindow.webContents.setZoomLevel(currentZoom - 0.5)
-      }
+      this.adjustZoomFactor(-0.1)
     })
     
     globalShortcut.register("CommandOrControl+0", () => {
       console.log("Command/Ctrl + 0 pressed. Resetting zoom.")
-      const mainWindow = this.deps.getMainWindow()
-      if (mainWindow) {
-        mainWindow.webContents.setZoomLevel(0)
-      }
+      this.setZoomFactor(1)
     })
     
     globalShortcut.register("CommandOrControl+=", () => {
       console.log("Command/Ctrl + = pressed. Zooming in.")
-      const mainWindow = this.deps.getMainWindow()
-      if (mainWindow) {
-        const currentZoom = mainWindow.webContents.getZoomLevel()
-        mainWindow.webContents.setZoomLevel(currentZoom + 0.5)
-      }
+      this.adjustZoomFactor(0.1)
     })
     
     // Delete last screenshot shortcut

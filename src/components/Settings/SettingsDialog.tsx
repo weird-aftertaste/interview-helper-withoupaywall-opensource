@@ -28,6 +28,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
   const [open, setOpen] = useState(externalOpen || false);
   const [apiKey, setApiKey] = useState("");
   const [workflow, setWorkflow] = useState<Workflow>("coding");
+  const [interfaceScale, setInterfaceScale] = useState(1);
   const [apiProvider, setApiProvider] = useState<APIProvider>("openai");
   const [extractionModel, setExtractionModel] = useState(
     DEFAULT_MODELS.openai.extractionModel
@@ -63,6 +64,13 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     }
   }, [externalOpen]);
 
+  useEffect(() => {
+    return window.electronAPI.onInterfaceScaleChanged((zoomFactor) => {
+      setInterfaceScale(zoomFactor);
+    });
+  }, []);
+
+
   // Handle open state changes
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -80,6 +88,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         apiKey?: string;
         apiProvider?: APIProvider;
         workflow?: Workflow;
+        zoomFactor?: number;
         extractionModel?: string;
         solutionModel?: string;
         debuggingModel?: string;
@@ -100,6 +109,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           setApiKey(config.apiKey || "");
           const configuredProvider = config.apiProvider || "openai";
           setWorkflow(config.workflow || "coding");
+          setInterfaceScale(config.zoomFactor || 1);
           const provider: APIProvider =
             configuredProvider === "gemini" ? "openai" : configuredProvider;
           setApiProvider(provider);
@@ -169,6 +179,22 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
     }
   };
 
+
+  const handleInterfaceScaleChange = async (requestedScale: number) => {
+    const boundedScale = Math.min(1.4, Math.max(0.6, requestedScale));
+    setInterfaceScale(boundedScale);
+    try {
+      const result = await window.electronAPI.setInterfaceScale(boundedScale);
+      if (!result.success) {
+        throw new Error(result.error || "Could not update interface scale");
+      }
+      setInterfaceScale(result.zoomFactor || boundedScale);
+    } catch (error) {
+      console.error("Failed to update interface scale:", error);
+      showToast("Error", "Failed to update interface scale", "error");
+    }
+  };
+
   const handleSave = async () => {
     setIsLoading(true);
     try {
@@ -190,6 +216,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         apiProvider,
         workflow,
         extractionModel,
+        zoomFactor: interfaceScale,
         solutionModel,
         debuggingModel,
         answerModel,
@@ -445,7 +472,52 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
           )}
           
           <div className="space-y-2 mt-4">
-            <label className="text-sm font-medium text-white mb-2 block">Keyboard Shortcuts</label>
+            <label className="text-sm font-medium text-white mb-2 block">Display &amp; shortcuts</label>
+
+          <div className="space-y-2 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <label
+                  className="text-sm font-medium text-white"
+                  htmlFor="interfaceScale"
+                >
+                  Interface scale
+                </label>
+                <p className="mt-1 text-xs text-white/50">
+                  Shrink the app when lower content is hard to reach.
+                </p>
+              </div>
+              <span className="min-w-12 text-right font-mono text-sm text-blue-300">
+                {Math.round(interfaceScale * 100)}%
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-white/40">60%</span>
+              <input
+                id="interfaceScale"
+                type="range"
+                min="0.6"
+                max="1.4"
+                step="0.1"
+                value={interfaceScale}
+                onChange={(event) =>
+                  void handleInterfaceScaleChange(Number(event.target.value))
+                }
+                className="h-1 flex-1 cursor-pointer accent-blue-400"
+              />
+              <span className="text-[11px] text-white/40">140%</span>
+              <button
+                type="button"
+                onClick={() => void handleInterfaceScaleChange(1)}
+                className="rounded px-2 py-1 text-xs text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                Reset
+              </button>
+            </div>
+            <p className="text-[11px] text-white/35">
+              Ctrl/Cmd + − or = to adjust · Ctrl/Cmd + 0 to reset
+            </p>
+          </div>
             <div className="bg-black/30 border border-white/10 rounded-lg p-3">
               <div className="grid grid-cols-2 gap-y-2 text-xs">
                 <div className="text-white/70">Toggle Visibility</div>

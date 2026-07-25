@@ -27,6 +27,7 @@ export interface AppConfig {
   language?: string
   workflow?: "coding" | "biotech"
   opacity?: number
+  zoomFactor?: number
   apiProvider?: "openai" | "gemini" | "anthropic"
   extractionModel?: string
   solutionModel?: string
@@ -74,6 +75,13 @@ export interface ElectronAPI {
     width: number
     height: number
   }) => Promise<void>
+  getInterfaceScale: () => Promise<number>
+  setInterfaceScale: (zoomFactor: number) => Promise<{
+    success: boolean
+    zoomFactor?: number
+    error?: string
+  }>
+  onInterfaceScaleChanged: (callback: (zoomFactor: number) => void) => () => void
   clearStore: () => Promise<{ success: boolean; error?: string }>
   getScreenshots: () => Promise<Array<{ path: string; preview: string }>>
   deleteScreenshot: (

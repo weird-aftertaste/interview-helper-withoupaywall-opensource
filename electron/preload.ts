@@ -24,6 +24,7 @@ type ConfigUpdatePayload = {
   language?: string
   workflow?: Workflow
   opacity?: number
+  zoomFactor?: number
   apiProvider?: "openai" | "gemini" | "anthropic"
   extractionModel?: string
   solutionModel?: string
@@ -72,6 +73,19 @@ const electronAPI = {
   openSettingsPortal: () => ipcRenderer.invoke("open-settings-portal"),
   updateContentDimensions: (dimensions: { width: number; height: number }) =>
     ipcRenderer.invoke("update-content-dimensions", dimensions),
+  getInterfaceScale: () => ipcRenderer.invoke("get-interface-scale"),
+  setInterfaceScale: (zoomFactor: number) =>
+    ipcRenderer.invoke("set-interface-scale", zoomFactor),
+  onInterfaceScaleChanged: (callback: (zoomFactor: number) => void) => {
+    const subscription = (
+      _event: IpcRendererEvent,
+      zoomFactor: number
+    ) => callback(zoomFactor)
+    ipcRenderer.on("interface-scale-changed", subscription)
+    return () => {
+      ipcRenderer.removeListener("interface-scale-changed", subscription)
+    }
+  },
   clearStore: () => ipcRenderer.invoke("clear-store"),
   getScreenshots: () => ipcRenderer.invoke("get-screenshots"),
   deleteScreenshot: (path: string) =>

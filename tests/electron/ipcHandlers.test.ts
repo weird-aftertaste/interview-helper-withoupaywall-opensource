@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import type { BrowserWindow } from "electron"
 import type { IIpcHandlerDeps } from "../../electron/main"
 import { initializeIpcHandlers } from "../../electron/ipcHandlers"
 import { createIpcHarness } from "./helpers/ipcHarness"
@@ -17,6 +18,8 @@ const mocks = vi.hoisted(() => {
     configHelper: {
       loadConfig: vi.fn(),
       updateConfig: vi.fn(),
+      getZoomFactor: vi.fn(),
+      setZoomFactor: vi.fn(),
       hasApiKey: vi.fn(),
       isValidApiKeyFormat: vi.fn(),
       testApiKey: vi.fn(),
@@ -61,6 +64,9 @@ const createFixture = (overrides: Partial<IIpcHandlerDeps> = {}) => {
     webContents: {
       send: vi.fn(),
       executeJavaScript: vi.fn(async () => 100),
+      getZoomFactor: vi.fn(() => 1),
+      setZoomFactor: vi.fn(),
+      getZoomLevel: vi.fn(() => 0),
     },
   }
 
@@ -95,7 +101,7 @@ const createFixture = (overrides: Partial<IIpcHandlerDeps> = {}) => {
   }
 
   const deps: IIpcHandlerDeps = {
-    getMainWindow: vi.fn(() => mainWindow as unknown as Electron.BrowserWindow),
+    getMainWindow: vi.fn(() => mainWindow as unknown as BrowserWindow),
     setWindowDimensions: vi.fn(),
     getScreenshotQueue: vi.fn(() => ["queue-1.png"]),
     getExtraScreenshotQueue: vi.fn(() => ["extra-1.png"]),
@@ -137,6 +143,8 @@ const configureConfigHelperDefaults = () => {
   mocks.configHelper.hasApiKey.mockReturnValue(true)
   mocks.configHelper.isValidApiKeyFormat.mockReturnValue(true)
   mocks.configHelper.testApiKey.mockResolvedValue({ valid: true })
+  mocks.configHelper.getZoomFactor.mockReturnValue(1)
+  mocks.configHelper.setZoomFactor.mockImplementation((factor: number) => Math.min(1.4, Math.max(0.6, factor)))
 }
 
 const setup = (overrides: Partial<IIpcHandlerDeps> = {}) => {
@@ -147,6 +155,8 @@ const setup = (overrides: Partial<IIpcHandlerDeps> = {}) => {
   mocks.configHelper.hasApiKey.mockReset()
   mocks.configHelper.isValidApiKeyFormat.mockReset()
   mocks.configHelper.testApiKey.mockReset()
+  mocks.configHelper.getZoomFactor.mockReset()
+  mocks.configHelper.setZoomFactor.mockReset()
   configureConfigHelperDefaults()
 
   const fixture = createFixture(overrides)
@@ -171,11 +181,14 @@ describe("initializeIpcHandlers", () => {
     expect(harness.handlers.has("add-conversation-message")).toBe(true)
     expect(harness.handlers.has("ask-follow-up")).toBe(true)
     expect(harness.handlers.has("open-external-url")).toBe(true)
+    expect(harness.handlers.has("get-interface-scale")).toBe(true)
+    expect(harness.handlers.has("set-interface-scale")).toBe(true)
     expect(harness.handlers.has("openLink")).toBe(true)
     expect(harness.handlers.has("openExternal")).toBe(true)
   })
 
   it("returns queue previews from get-screenshots in queue view", async () => {
+
     const { harness, deps } = setup()
 
     const result = await harness.invoke("get-screenshots")
@@ -183,6 +196,31 @@ describe("initializeIpcHandlers", () => {
     expect(result).toEqual([{ path: "queue-1.png", preview: "preview-queue-1.png" }])
     expect(deps.getScreenshotQueue).toHaveBeenCalledTimes(1)
     expect(deps.getImagePreview).toHaveBeenCalledWith("queue-1.png")
+
+  })
+  it("clamps, applies, persists, and broadcasts interface scale", async () => {
+    const { harness, mainWindow } = setup()
+
+    const result = await harness.invoke("set-interface-scale", 0.4)
+
+    expect(mocks.configHelper.setZoomFactor).toHaveBeenCalledWith(0.4)
+    expect(mainWindow.webContents.setZoomFactor).toHaveBeenCalledWith(0.6)
+    expect(mainWindow.webContents.send).toHaveBeenCalledWith(
+      "interface-scale-changed",
+      0.6
+    )
+    expect(result).toEqual({ success: true, zoomFactor: 0.6 })
+  })
+
+  it("rejects a non-numeric interface scale", async () => {
+    const { harness } = setup()
+
+    const result = await harness.invoke("set-interface-scale", "not-a-number")
+
+    expect(result).toEqual({
+      success: false,
+      error: "Interface scale must be a number",
+    })
   })
 
   it("returns extra queue previews in non-queue view", async () => {

@@ -31,6 +31,36 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
     return configHelper.updateConfig(updates);
   })
 
+
+  ipcMain.handle("get-interface-scale", () => {
+    const mainWindow = deps.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return configHelper.getZoomFactor()
+    }
+    return mainWindow.webContents.getZoomFactor()
+  })
+
+  ipcMain.handle("set-interface-scale", (_event, requestedFactor: unknown) => {
+    const parsedFactor = Number(requestedFactor)
+    if (!Number.isFinite(parsedFactor)) {
+      return {
+        success: false,
+        error: "Interface scale must be a number",
+      }
+    }
+
+    const zoomFactor = configHelper.setZoomFactor(parsedFactor)
+    const mainWindow = deps.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.setZoomFactor(zoomFactor)
+      mainWindow.webContents.send("interface-scale-changed", zoomFactor)
+    }
+
+    return {
+      success: true,
+      zoomFactor,
+    }
+  })
   ipcMain.handle("check-api-key", () => {
     return configHelper.hasApiKey();
   })
