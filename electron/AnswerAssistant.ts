@@ -104,12 +104,18 @@ export class AnswerAssistant implements IAnswerAssistant {
     return !openaiBaseUrl?.trim();
   }
 
-  private resolveAnswerSystemPrompt(answerSystemPrompt?: string): string {
+  private resolveAnswerSystemPrompt(
+    answerSystemPrompt?: string,
+    workflow: "coding" | "biotech" = "coding"
+  ): string {
     const customPrompt = answerSystemPrompt?.trim();
     if (customPrompt) {
       return customPrompt;
     }
 
+    if (workflow === "biotech") {
+      return "You are a biotechnology interview assistant. Give concise, scientifically precise suggestions; distinguish evidence from assumptions; flag uncertainty; never fabricate studies, data, citations, clinical claims, or regulatory conclusions. Reply in the same language as the interviewer's latest question.";
+    }
     return "You are a helpful interview assistant supporting the candidate for this interview. Tailor suggestions to the job description when provided, and only use resume details when the question is about the candidate's background. Provide concise, actionable suggestions. Reply in the same language as the interviewer's latest question unless the user explicitly asks to switch languages.";
   }
 
@@ -185,10 +191,11 @@ export class AnswerAssistant implements IAnswerAssistant {
       conversationHistory,
       previousAnswers,
       screenshotContext,
-      profile
+      profile,
+      config.workflow
     );
 
-    const systemMessage = this.resolveAnswerSystemPrompt(config.answerSystemPrompt);
+    const systemMessage = this.resolveAnswerSystemPrompt(config.answerSystemPrompt, config.workflow);
 
     try {
       let suggestionsText = '';
@@ -296,7 +303,8 @@ export class AnswerAssistant implements IAnswerAssistant {
     conversationHistory: string,
     previousAnswers: string[],
     screenshotContext?: string,
-    candidateProfile?: CandidateProfile
+    candidateProfile?: CandidateProfile,
+    workflow: "coding" | "biotech" = "coding"
   ): string {
     const shouldUseResume = this.isResumeRelevant(currentQuestion);
     let prompt = `You are an AI assistant helping someone during an interview. 
@@ -330,6 +338,14 @@ ${candidateProfile.jobDescription}`;
         prompt += `\n\nCandidate Profile (use this to personalize suggestions):
 ${profileSections.join('\n')}`;
       }
+    }
+
+    if (workflow === "biotech") {
+      prompt += `\n\nFor this biotech workflow, prioritize:
+- correct scientific terminology and mechanism
+- experimental design, controls, units, and statistical interpretation when relevant
+- a clear separation between supplied evidence, domain knowledge, and assumptions
+- safety, quality, regulatory, and clinical caveats when relevant`;
     }
 
     prompt += `\n\nBased on the current question and conversation history${shouldUseResume && candidateProfile ? ', and candidate profile (resume only when relevant)' : ''}, provide 3-5 bullet point suggestions that:

@@ -15,6 +15,7 @@ import {
   APIProvider,
   DEFAULT_MODELS,
 } from "../../../shared/aiModels";
+import type { Workflow } from "../../../shared/workflows";
 
 type TranscriptionProvider = "openai" | "gemini" | "groq";
 
@@ -26,6 +27,7 @@ interface SettingsDialogProps {
 export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDialogProps) {
   const [open, setOpen] = useState(externalOpen || false);
   const [apiKey, setApiKey] = useState("");
+  const [workflow, setWorkflow] = useState<Workflow>("coding");
   const [apiProvider, setApiProvider] = useState<APIProvider>("openai");
   const [extractionModel, setExtractionModel] = useState(
     DEFAULT_MODELS.openai.extractionModel
@@ -77,6 +79,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       interface Config {
         apiKey?: string;
         apiProvider?: APIProvider;
+        workflow?: Workflow;
         extractionModel?: string;
         solutionModel?: string;
         debuggingModel?: string;
@@ -96,6 +99,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
         .then((config: Config) => {
           setApiKey(config.apiKey || "");
           const configuredProvider = config.apiProvider || "openai";
+          setWorkflow(config.workflow || "coding");
           const provider: APIProvider =
             configuredProvider === "gemini" ? "openai" : configuredProvider;
           setApiProvider(provider);
@@ -184,6 +188,7 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
       const result = await window.electronAPI.updateConfig({
         apiKey,
         apiProvider,
+        workflow,
         extractionModel,
         solutionModel,
         debuggingModel,
@@ -261,6 +266,45 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
             <h2 className="text-sm font-semibold text-white">API Settings</h2>
             <p className="text-xs text-white/60">
               Choose your provider and models. These control how screenshots and solutions are processed.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-white">Workflow</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  id: "coding" as const,
+                  label: "Coding",
+                  description: "Algorithms, implementation, and debugging",
+                },
+                {
+                  id: "biotech" as const,
+                  label: "Biotech",
+                  description: "Scientific questions, evidence, and experimental reasoning",
+                },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`rounded-lg border p-3 text-left transition-colors ${
+                    workflow === item.id
+                      ? "border-white/20 bg-white/10"
+                      : "border-white/5 bg-black/30 hover:bg-white/5"
+                  }`}
+                  onClick={() => setWorkflow(item.id)}
+                >
+                  <span className="block text-sm font-medium text-white">
+                    {item.label}
+                  </span>
+                  <span className="mt-1 block text-xs text-white/60">
+                    {item.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-white/50">
+              Changes how screenshots are interpreted and how answers are structured.
             </p>
           </div>
           

@@ -10,6 +10,11 @@ import {
   DEFAULT_MODELS,
   sanitizeModelSelection,
 } from "../shared/aiModels";
+import {
+  DEFAULT_WORKFLOW,
+  isWorkflow,
+  type Workflow,
+} from "../shared/workflows";
 
 export interface CandidateProfile {
   name?: string;
@@ -32,6 +37,7 @@ interface Config {
   groqApiKey?: string;
   groqWhisperModel?: string;
   language: string;
+  workflow: Workflow;
   opacity: number;
   candidateProfile?: CandidateProfile;  // Candidate profile for personalized AI suggestions
 }
@@ -66,6 +72,7 @@ export class ConfigHelper extends EventEmitter {
     groqApiKey: "",
     groqWhisperModel: "whisper-large-v3-turbo",
     language: "python",
+    workflow: DEFAULT_WORKFLOW,
     opacity: 1.0,
     candidateProfile: {
       name: "",
@@ -156,6 +163,9 @@ export class ConfigHelper extends EventEmitter {
         }
         if (typeof config.answerSystemPrompt === "string") {
           config.answerSystemPrompt = config.answerSystemPrompt.trim();
+        }
+        if (!isWorkflow(config.workflow)) {
+          config.workflow = DEFAULT_WORKFLOW;
         }
 
         // Ensure transcriptionProvider is valid
@@ -378,7 +388,7 @@ export class ConfigHelper extends EventEmitter {
           updates.transcriptionProvider !== undefined || updates.groqApiKey !== undefined ||
           updates.groqWhisperModel !== undefined ||
           updates.speechRecognitionModel !== undefined || 
-          updates.language !== undefined) {
+          updates.language !== undefined || updates.workflow !== undefined) {
         this.emit('config-updated', newConfig);
       }
       

@@ -49,12 +49,14 @@ const SolutionSection = ({
   title,
   content,
   isLoading,
-  currentLanguage
+  currentLanguage,
+  workflow
 }: {
   title: string
   content: React.ReactNode
   isLoading: boolean
   currentLanguage: string
+  workflow: "coding" | "biotech"
 }) => {
   const [copied, setCopied] = useState(false)
 
@@ -88,6 +90,11 @@ const SolutionSection = ({
           >
             {copied ? "Copied!" : "Copy"}
           </button>
+          {workflow === "biotech" ? (
+            <div className="whitespace-pre-wrap rounded-md bg-white/5 p-4 pr-16 text-[13px] leading-relaxed text-gray-100">
+              {content}
+            </div>
+          ) : (
           <Suspense fallback={<div className="text-white/60 text-sm">Loading syntax highlighter...</div>}>
             <SyntaxHighlighter
               showLineNumbers
@@ -106,6 +113,7 @@ const SolutionSection = ({
             {content as string}
             </SyntaxHighlighter>
           </Suspense>
+          )}
         </div>
       )}
     </div>
@@ -186,6 +194,9 @@ interface SolutionData {
   thoughts: string[]
   time_complexity: string
   space_complexity: string
+  workflow?: "coding" | "biotech"
+  evidence?: string
+  caveats?: string
 }
 
 interface DebugSolutionData {
@@ -215,6 +226,9 @@ const Solutions: React.FC<SolutionsProps> = ({
     useState<ProblemStatementData | null>(null)
   const [solutionData, setSolutionData] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
+  const [workflow, setWorkflow] = useState<"coding" | "biotech">("coding")
+  const [evidenceData, setEvidenceData] = useState<string | null>(null)
+  const [caveatsData, setCaveatsData] = useState<string | null>(null)
   const [timeComplexityData, setTimeComplexityData] = useState<string | null>(
     null
   )
@@ -321,6 +335,9 @@ const Solutions: React.FC<SolutionsProps> = ({
         // Every time processing starts, reset relevant states
         setSolutionData(null)
         setThoughtsData(null)
+        setWorkflow("coding")
+        setEvidenceData(null)
+        setCaveatsData(null)
         setTimeComplexityData(null)
         setSpaceComplexityData(null)
       }),
@@ -357,12 +374,18 @@ const Solutions: React.FC<SolutionsProps> = ({
           code: data.code,
           thoughts: data.thoughts,
           time_complexity: data.time_complexity,
-          space_complexity: data.space_complexity
+          space_complexity: data.space_complexity,
+          workflow: data.workflow || "coding",
+          evidence: data.evidence,
+          caveats: data.caveats,
         }
 
         queryClient.setQueryData(["solution"], solutionData)
         setSolutionData(solutionData.code || null)
         setThoughtsData(solutionData.thoughts || null)
+        setWorkflow(solutionData.workflow)
+        setEvidenceData(solutionData.evidence || null)
+        setCaveatsData(solutionData.caveats || null)
         setTimeComplexityData(solutionData.time_complexity || null)
         setSpaceComplexityData(solutionData.space_complexity || null)
 
@@ -440,10 +463,16 @@ const Solutions: React.FC<SolutionsProps> = ({
           thoughts: string[]
           time_complexity: string
           space_complexity: string
+          workflow?: "coding" | "biotech"
+          evidence?: string
+          caveats?: string
         } | null
 
         setSolutionData(solution?.code ?? null)
         setThoughtsData(solution?.thoughts ?? null)
+        setWorkflow(solution?.workflow ?? "coding")
+        setEvidenceData(solution?.evidence ?? null)
+        setCaveatsData(solution?.caveats ?? null)
         setTimeComplexityData(solution?.time_complexity ?? null)
         setSpaceComplexityData(solution?.space_complexity ?? null)
       }
@@ -546,7 +575,11 @@ const Solutions: React.FC<SolutionsProps> = ({
                 {solutionData && (
                   <>
                     <ContentSection
-                      title={`My Thoughts (${COMMAND_KEY} + Arrow keys to scroll)`}
+                      title={
+                        workflow === "biotech"
+                          ? `Key Scientific Points (${COMMAND_KEY} + Arrow keys to scroll)`
+                          : `My Thoughts (${COMMAND_KEY} + Arrow keys to scroll)`
+                      }
                       content={
                         thoughtsData && (
                           <div className="space-y-3">
@@ -568,17 +601,33 @@ const Solutions: React.FC<SolutionsProps> = ({
                     />
 
                     <SolutionSection
-                      title="Solution"
+                      title={workflow === "biotech" ? "Recommended Answer" : "Solution"}
                       content={solutionData}
                       isLoading={!solutionData}
                       currentLanguage={currentLanguage}
+                      workflow={workflow}
                     />
 
-                    <ComplexitySection
-                      timeComplexity={timeComplexityData}
-                      spaceComplexity={spaceComplexityData}
-                      isLoading={!timeComplexityData || !spaceComplexityData}
-                    />
+                    {workflow === "biotech" ? (
+                      <>
+                        <ContentSection
+                          title="Evidence and Assumptions"
+                          content={<div className="whitespace-pre-wrap">{evidenceData}</div>}
+                          isLoading={!evidenceData}
+                        />
+                        <ContentSection
+                          title="Caveats and Follow-up"
+                          content={<div className="whitespace-pre-wrap">{caveatsData}</div>}
+                          isLoading={!caveatsData}
+                        />
+                      </>
+                    ) : (
+                      <ComplexitySection
+                        timeComplexity={timeComplexityData}
+                        spaceComplexity={spaceComplexityData}
+                        isLoading={!timeComplexityData || !spaceComplexityData}
+                      />
+                    )}
                   </>
                 )}
               </div>

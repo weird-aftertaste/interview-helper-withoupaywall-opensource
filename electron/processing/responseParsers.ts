@@ -1,4 +1,9 @@
-import type { DebugResponsePayload, ProcessingProblemInfo } from "./types"
+import type {
+  DebugResponsePayload,
+  ProcessingProblemInfo,
+  SolutionResponsePayload,
+} from "./types"
+import type { Workflow } from "../../shared/workflows"
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -50,7 +55,8 @@ export const extractThoughts = (content: string): string[] => {
 
 export const buildDebugResponse = (
   extractedCode: string,
-  debugContent: string
+  debugContent: string,
+  workflow: Workflow = "coding"
 ): DebugResponsePayload => {
   const formattedDebugContent = normalizeDebugContent(debugContent)
   const thoughts = extractThoughts(formattedDebugContent)
@@ -61,5 +67,40 @@ export const buildDebugResponse = (
     thoughts,
     time_complexity: "N/A - Debug mode",
     space_complexity: "N/A - Debug mode",
+    workflow,
+  }
+}
+
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : []
+
+export const parseBiotechSolutionResponse = (
+  responseText: string
+): SolutionResponsePayload | null => {
+  try {
+    const parsed = JSON.parse(extractJsonCandidate(responseText)) as unknown
+    if (!isPlainObject(parsed) || typeof parsed.answer !== "string") {
+      return null
+    }
+
+    return {
+      code: parsed.answer,
+      thoughts: asStringArray(parsed.key_points),
+      evidence:
+        typeof parsed.evidence === "string"
+          ? parsed.evidence
+          : "Evidence was not provided.",
+      caveats:
+        typeof parsed.caveats === "string"
+          ? parsed.caveats
+          : "Caveats were not provided.",
+      time_complexity: "Not applicable",
+      space_complexity: "Not applicable",
+      workflow: "biotech",
+    }
+  } catch {
+    return null
   }
 }

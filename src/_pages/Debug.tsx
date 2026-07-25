@@ -89,6 +89,7 @@ interface DebugSolutionData {
   thoughts: string[]
   time_complexity: string
   space_complexity: string
+  workflow?: "coding" | "biotech"
 }
 
 interface DebugSection {
@@ -111,6 +112,7 @@ const Debug: React.FC<DebugProps> = ({
     gcTime: Infinity,
     refetchOnWindowFocus: false
   })
+  const [workflow, setWorkflow] = useState<"coding" | "biotech">("coding")
 
   const [newCode, setNewCode] = useState<string | null>(null)
   const [thoughtsData, setThoughtsData] = useState<string[] | null>(null)
@@ -131,6 +133,7 @@ const Debug: React.FC<DebugProps> = ({
 
     // If we have cached data, set all state variables to the cached data
     if (newSolution) {
+      setWorkflow(newSolution.workflow || "coding")
       console.log("Found cached debug solution:", newSolution);
       
       if (newSolution.debug_analysis) {
@@ -162,6 +165,7 @@ const Debug: React.FC<DebugProps> = ({
       window.electronAPI.onScreenshotTaken(() => refetch()),
       window.electronAPI.onResetView(() => refetch()),
       window.electronAPI.onDebugSuccess((data: DebugSolutionData) => {
+        setWorkflow(data.workflow || "coding")
         console.log("Debug success event received with data:", data);
         queryClient.setQueryData(["new_solution"], data);
         
@@ -294,7 +298,7 @@ const Debug: React.FC<DebugProps> = ({
           <div className="px-4 py-3 space-y-4">
             {/* Thoughts Section */}
             <ContentSection
-              title="What I Changed"
+              title={workflow === "biotech" ? "Scientific Review Summary" : "What I Changed"}
               content={
                 thoughtsData && (
                   <div className="space-y-3">
@@ -313,16 +317,18 @@ const Debug: React.FC<DebugProps> = ({
             />
 
             {/* Code Section */}
-            <CodeSection
-              title="Original Code"
-              code={newCode}
-              isLoading={!newCode}
-              currentLanguage={currentLanguage}
-            />
+            {workflow === "coding" && (
+              <CodeSection
+                title="Original Code"
+                code={newCode}
+                isLoading={!newCode}
+                currentLanguage={currentLanguage}
+              />
+            )}
             
             {/* Debug Analysis Section */}
             <div className="space-y-2">
-              <h2 className="text-[13px] font-medium text-white tracking-wide">Analysis & Improvements</h2>
+              <h2 className="text-[13px] font-medium text-white tracking-wide">{workflow === "biotech" ? "Scientific Analysis & Revised Answer" : "Analysis & Improvements"}</h2>
               {!debugAnalysis ? (
                 <div className="space-y-1.5">
                   <div className="mt-4 flex">
@@ -449,11 +455,13 @@ const Debug: React.FC<DebugProps> = ({
             </div>
 
             {/* Complexity Section */}
-            <ComplexitySection
-              timeComplexity={timeComplexityData}
-              spaceComplexity={spaceComplexityData}
-              isLoading={!timeComplexityData || !spaceComplexityData}
-            />
+            {workflow === "coding" && (
+              <ComplexitySection
+                timeComplexity={timeComplexityData}
+                spaceComplexity={spaceComplexityData}
+                isLoading={!timeComplexityData || !spaceComplexityData}
+              />
+            )}
           </div>
         </div>
       </div>

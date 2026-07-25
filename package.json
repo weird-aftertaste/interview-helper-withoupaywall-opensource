@@ -1,6 +1,6 @@
 {
   "name": "interview-coder-v1",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "main": "./dist-electron/main.js",
   "scripts": {
     "clean": "npx rimraf dist dist-electron",

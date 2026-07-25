@@ -2,6 +2,7 @@ console.log("Preload script starting...")
 import { contextBridge, ipcRenderer, shell, type IpcRendererEvent } from "electron"
 import type { CandidateProfile } from "./ConfigHelper"
 import type { ConversationMessage } from "./ConversationManager"
+import type { Workflow } from "../shared/workflows"
 
 type ProcessingPayload = {
   problem_statement?: string
@@ -21,6 +22,7 @@ type ConfigUpdatePayload = {
   apiKey?: string
   model?: string
   language?: string
+  workflow?: Workflow
   opacity?: number
   apiProvider?: "openai" | "gemini" | "anthropic"
   extractionModel?: string

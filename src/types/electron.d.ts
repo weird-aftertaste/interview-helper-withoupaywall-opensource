@@ -25,6 +25,7 @@ export interface AppConfig {
   apiKey: string
   model: string
   language?: string
+  workflow?: "coding" | "biotech"
   opacity?: number
   apiProvider?: "openai" | "gemini" | "anthropic"
   extractionModel?: string

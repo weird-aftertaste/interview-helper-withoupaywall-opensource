@@ -19,6 +19,17 @@ export interface DebugResponsePayload {
   thoughts: string[]
   time_complexity: string
   space_complexity: string
+  workflow?: "coding" | "biotech"
+}
+
+export interface SolutionResponsePayload {
+  code: string
+  thoughts: string[]
+  time_complexity: string
+  space_complexity: string
+  workflow: "coding" | "biotech"
+  evidence?: string
+  caveats?: string
 }
 
 export interface GeminiMessage {

@@ -22,6 +22,7 @@ import {
 } from "./processing/promptBuilders"
 import {
   buildDebugResponse,
+  parseBiotechSolutionResponse,
   parseProblemInfoResponse,
 } from "./processing/responseParsers"
 import {
@@ -510,7 +511,8 @@ export class ProcessingHelper {
         const conversationContext = this.getConversationContext();
         const extractionPrompt = buildExtractionPrompt(
           language,
-          conversationContext
+          conversationContext,
+          config.workflow
         )
         
         // Use OpenAI for processing
@@ -577,7 +579,8 @@ export class ProcessingHelper {
           const conversationContext = this.getConversationContext();
           const extractionPrompt = buildExtractionPrompt(
             language,
-            conversationContext
+            conversationContext,
+            config.workflow
           )
           
           const geminiPrompt = `${extractionPrompt.systemPrompt} ${extractionPrompt.userPrompt}`
@@ -648,10 +651,11 @@ export class ProcessingHelper {
           const conversationContext = this.getConversationContext();
           const extractionPrompt = buildExtractionPrompt(
             language,
-            conversationContext
+            conversationContext,
+            config.workflow
           )
           
-          const anthropicPrompt = `${extractionPrompt.userPrompt.replace("Preferred coding language we gonna use for this problem is", "Preferred coding language is")}`
+          const anthropicPrompt = `${extractionPrompt.systemPrompt}\n\n${extractionPrompt.userPrompt.replace("Preferred coding language we gonna use for this problem is", "Preferred coding language is")}`
           
           const messages = [
             {
@@ -825,7 +829,11 @@ export class ProcessingHelper {
       }
 
       // Create prompt for solution generation
-      const promptText = buildSolutionPrompt(problemInfo, language)
+      const promptText = buildSolutionPrompt(problemInfo, language, config.workflow)
+      const solutionSystemPrompt =
+        config.workflow === "biotech"
+          ? "You are an expert biotechnology interview assistant. Be scientifically precise, evidence-aware, and explicit about uncertainty. Do not fabricate data or citations."
+          : "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations."
 
       let responseContent = "";
       
@@ -847,7 +855,7 @@ export class ProcessingHelper {
         const solutionResponse = await this.openaiClient.chat.completions.create({
           model: openaiModel,
           messages: [
-            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
+            { role: "system", content: solutionSystemPrompt },
             { role: "user", content: promptText }
           ],
           max_tokens: 4000,
@@ -873,7 +881,7 @@ export class ProcessingHelper {
               role: "user",
               parts: [
                 {
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
+                  text: `${solutionSystemPrompt}\n\n${promptText}`
                 }
               ]
             }
@@ -922,7 +930,7 @@ export class ProcessingHelper {
               content: [
                 {
                   type: "text" as const,
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
+                  text: `${solutionSystemPrompt}\n\n${promptText}`
                 }
               ]
             }
@@ -964,6 +972,18 @@ export class ProcessingHelper {
         }
       }
       
+      if (config.workflow === "biotech") {
+        const biotechResponse = parseBiotechSolutionResponse(responseContent)
+        if (!biotechResponse) {
+          return {
+            success: false,
+            error:
+              "The biotech answer could not be parsed. Please retry with clearer screenshots.",
+          }
+        }
+        return { success: true, data: biotechResponse }
+      }
+
       // Extract parts from the response
       const codeMatch = responseContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
       const code = codeMatch ? codeMatch[1].trim() : responseContent;
@@ -1029,7 +1049,8 @@ export class ProcessingHelper {
         code: code,
         thoughts: thoughts.length > 0 ? thoughts : ["Solution approach based on efficiency and readability"],
         time_complexity: timeComplexity,
-        space_complexity: spaceComplexity
+        space_complexity: spaceComplexity,
+        workflow: "coding" as const,
       };
 
       return { success: true, data: formattedResponse };
@@ -1084,7 +1105,7 @@ export class ProcessingHelper {
 
       // Prepare the images for the API call
       const imageDataList = screenshots.map(screenshot => screenshot.data);
-      const debugPromptBundle = buildDebugPrompt(problemInfo, language)
+      const debugPromptBundle = buildDebugPrompt(problemInfo, language, config.workflow)
       
       let debugContent = "";
       
@@ -1280,7 +1301,7 @@ export class ProcessingHelper {
 
       const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/)
       const extractedCode = codeMatch?.[1]?.trim() || "// Debug mode - see analysis below"
-      const response = buildDebugResponse(extractedCode, debugContent)
+      const response = buildDebugResponse(extractedCode, debugContent, config.workflow)
 
       return { success: true, data: response };
     } catch (error: unknown) {
