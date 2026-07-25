@@ -24,7 +24,8 @@ export function initAutoUpdater() {
   // Configure auto updater
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.allowDowngrade = true
+  // Never offer an older GitHub release to users running a newer local build.
+  autoUpdater.allowDowngrade = false
   autoUpdater.allowPrerelease = true
 
   // Enable more verbose logging

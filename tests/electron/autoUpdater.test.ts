@@ -49,6 +49,7 @@ describe("initAutoUpdater", () => {
 
   beforeEach(() => {
     vi.resetModules();
+    mockAutoUpdater.allowDowngrade = true;
     vi.clearAllMocks();
     mockAutoUpdater.checkForUpdates.mockResolvedValue({});
     mockApp.isPackaged = false;
@@ -75,6 +76,7 @@ describe("initAutoUpdater", () => {
     initAutoUpdater();
 
     expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(mockAutoUpdater.allowDowngrade).toBe(false);
 
     setIntervalSpy.mockRestore();
   });
