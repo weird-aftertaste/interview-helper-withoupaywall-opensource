@@ -540,6 +540,10 @@ export function SettingsDialog({ open: externalOpen, onOpenChange }: SettingsDia
                 
                 <div className="text-white/70">Reset View</div>
                 <div className="text-white/90 font-mono">Ctrl+R / Cmd+R</div>
+
+                <div className="text-white/70">Quit Application</div>
+                <div className="text-white/90 font-mono">Ctrl+Q / Cmd+Q</div>
+
                 <div className="text-white/70">Move Window</div>
                 <div className="text-white/90 font-mono">Ctrl+Arrow Keys</div>
                 

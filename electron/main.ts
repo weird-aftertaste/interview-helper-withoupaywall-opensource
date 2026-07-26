@@ -14,6 +14,7 @@ import { ShortcutsHelper } from "./shortcuts"
 import { initAutoUpdater } from "./autoUpdater"
 import { configHelper } from "./ConfigHelper"
 import * as dotenv from "dotenv"
+import log from "electron-log"
 
 // Constants
 const isDev = process.env.NODE_ENV === "development"
@@ -44,6 +45,28 @@ function configureAppStoragePaths(): void {
 }
 
 configureAppStoragePaths()
+
+log.transports.file.level = "info"
+log.info("Application process starting", {
+  version: app.getVersion(),
+  platform: process.platform
+})
+
+let isAppQuitting = false
+let rendererRecoveryInProgress = false
+
+app.on("before-quit", () => {
+  isAppQuitting = true
+  log.info("Application before-quit event")
+})
+
+app.on("will-quit", () => {
+  log.info("Application will-quit event")
+})
+
+app.on("quit", (_event, exitCode) => {
+  log.info("Application quit event", { exitCode })
+})
 
 // Application State
 export interface ProblemInfo {
@@ -302,6 +325,25 @@ async function createWindow(): Promise<void> {
   // Add more detailed logging for window events
   state.mainWindow.webContents.on("did-finish-load", () => {
     console.log("Window finished loading")
+    rendererRecoveryInProgress = false
+  })
+  state.mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    log.error("Renderer process exited", details)
+    const mainWindow = state.mainWindow
+    if (
+      !isAppQuitting &&
+      !rendererRecoveryInProgress &&
+      mainWindow &&
+      !mainWindow.isDestroyed()
+    ) {
+      rendererRecoveryInProgress = true
+      setTimeout(() => {
+        if (!mainWindow.isDestroyed()) {
+          log.warn("Reloading window after renderer exit")
+          mainWindow.reload()
+        }
+      }, 500)
+    }
   })
   state.mainWindow.webContents.on(
     "did-fail-load",
@@ -394,6 +436,22 @@ async function createWindow(): Promise<void> {
   state.mainWindow.webContents.setFrameRate(60)
 
   // Set up window listeners
+  state.mainWindow.on("close", (event) => {
+    if (isAppQuitting) {
+      log.info("Main window closing during an explicit application quit")
+      return
+    }
+
+    log.warn("Prevented an unexpected main-window close request")
+    event.preventDefault()
+    state.mainWindow?.show()
+  })
+  state.mainWindow.on("unresponsive", () => {
+    log.error("Main window became unresponsive")
+  })
+  state.mainWindow.on("responsive", () => {
+    log.info("Main window became responsive again")
+  })
   state.mainWindow.on("move", handleWindowMove)
   state.mainWindow.on("resize", handleWindowResize)
   state.mainWindow.on("closed", handleWindowClosed)
@@ -655,12 +713,18 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit()
-      state.mainWindow = null
+    if (!isAppQuitting) {
+      log.warn("All windows closed unexpectedly; recreating the main window")
+      createWindow().catch((error) => {
+        log.error("Failed to recreate the main window", error)
+      })
     }
   })
 }
+
+app.on("child-process-gone", (_event, details) => {
+  log.error("Electron child process exited", details)
+})
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
