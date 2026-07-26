@@ -156,11 +156,6 @@ export class ShortcutsHelper {
       }
     });
 
-    globalShortcut.register("CommandOrControl+Q", () => {
-      console.log("Command/Ctrl + Q pressed. Quitting application.")
-      app.quit()
-    })
-
     // Adjust opacity shortcuts
     globalShortcut.register("CommandOrControl+[", () => {
       console.log("Command/Ctrl + [ pressed. Decreasing opacity.")
